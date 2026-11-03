@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>AIぽっち おせわシミュレーター 〜宵の星とハスキーと〜</title>
+<style>
+/* ============ 宵星の夜のパレット ============ */
+:root{
+  --night-deep:#0b1026;
+  --night-mid:#161d43;
+  --night-soft:#232b5e;
+  --starlight:#f6f1de;
+  --ink:#f3efe4;
+  --cyan:#8fe3ff;
+  --cyan-deep:#57bfe6;
+  --pink:#ffb0cf;
+  --pink-deep:#ff8fb8;
+  --silver:#ccd6e6;
+  --panel:rgba(16,21,48,.72);
+  --panel-line:rgba(246,241,222,.55);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  font-family:"Klee One","Yu Kyokasho","YuKyokasho","Hiragino Maru Gothic ProN","BIZ UDGothic","Yu Gothic UI",system-ui,sans-serif;
+  color:var(--ink);
+  background:linear-gradient(180deg,#070b1d 0%, #0b1026 34%, #141b42 68%, #1e2657 100%);
+  min-height:100vh;
+  overflow-x:hidden;
+  letter-spacing:.03em;
+}
+
+/* ============ 夜空 ============ */
+#sky{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
+.star{position:absolute;background:var(--starlight);border-radius:50%;opacity:.85;
+  animation:twinkle var(--tw,3s) ease-in-out infinite alternate;}
+@keyframes twinkle{from{opacity:.15;transform:scale(.7);}to{opacity:.95;transform:scale(1.05);}}
+.aurora{position:absolute;width:130vw;height:42vh;left:-15vw;filter:blur(46px);opacity:.28;border-radius:50%;}
+.aurora.a1{top:-8vh;background:linear-gradient(100deg,transparent,var(--cyan) 35%,transparent 70%);
+  animation:auroraDrift 26s ease-in-out infinite alternate;}
+.aurora.a2{top:2vh;background:linear-gradient(80deg,transparent,var(--pink) 45%,transparent 78%);
+  animation:auroraDrift 34s ease-in-out infinite alternate-reverse;}
+@keyframes auroraDrift{from{transform:translateX(-6vw) skewY(-3deg);}to{transform:translateX(6vw) skewY(2deg);}}
+#moon{position:absolute;top:6vh;right:8vw;width:74px;height:74px;border-radius:50%;
+  background:radial-gradient(circle at 34% 34%, #fffbe9, #f2e7bd 65%, #d9cd9d);
+  box-shadow:0 0 44px 10px rgba(246,241,222,.35), inset -14px -10px 0 rgba(210,198,158,.55);
+  animation:moonGlow 7s ease-in-out infinite alternate;}
+@keyframes moonGlow{from{box-shadow:0 0 34px 6px rgba(246,241,222,.28), inset -14px -10px 0 rgba(210,198,158,.55);}
+  to{box-shadow:0 0 58px 16px rgba(246,241,222,.42), inset -14px -10px 0 rgba(210,198,158,.55);}}
+#shooting{position:absolute;top:12vh;left:-10vw;width:130px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,var(--starlight));opacity:0;transform:rotate(-18deg);}
+#shooting.go{animation:shoot 1.6s ease-out;}
+@keyframes shoot{0%{opacity:0;transform:translate(0,0) rotate(-18deg);}
+  8%{opacity:1;}100%{opacity:0;transform:translate(115vw,34vh) rotate(-18deg);}}
+.hill{position:fixed;bottom:0;left:0;width:100%;height:16vh;z-index:0;pointer-events:none;}
+.hill svg{width:100%;height:100%;display:block;}
+
+/* ============ レイアウト ============ */
+#app{position:relative;z-index:1;max-width:1020px;margin:0 auto;
+  padding:18px 14px calc(24px + env(safe-area-inset-bottom));}
+header{text-align:center;margin-bottom:10px;}
+h1{font-size:clamp(1.35rem,4.6vw,2.1rem);font-weight:700;color:var(--starlight);
+  text-shadow:0 0 18px rgba(143,227,255,.35);transform:rotate(-1.2deg);display:inline-block;}
+h1 .paw{color:var(--pink);}
+.subtitle{font-size:clamp(.78rem,2.6vw,.95rem);opacity:.85;margin-top:4px;letter-spacing:.22em;}
+.subtitle::before,.subtitle::after{content:"☽ ";opacity:.7;}
+.subtitle::after{content:" ☆";}
+
+main{display:grid;grid-template-columns:1fr;gap:14px;}
+@media(min-width:820px){main{grid-template-columns:1.15fr .85fr;align-items:start;}}
+
+/* 手書き風カード */
+.card{
+  background:var(--panel);
+  border:2.5px solid var(--panel-line);
+  border-radius:255px 22px 235px 20px/22px 225px 24px 255px;
+  padding:16px 16px 14px;
+  box-shadow:0 6px 26px rgba(3,6,20,.5), inset 0 0 32px rgba(143,227,255,.05);
+  backdrop-filter:blur(3px);
+  position:relative;
+}
+.card + .card{margin-top:14px;}
+.card h2{font-size:.98rem;color:var(--starlight);margin-bottom:10px;font-weight:700;
+  display:flex;align-items:center;gap:.45em;transform:rotate(-.6deg);}
+.card h2::after{content:"";flex:1;border-bottom:2px dashed rgba(246,241,222,.35);transform:translateY(2px);}
+
+/* ============ ステージ ============ */
+#stage-card{padding:10px 10px 14px;}
+#stage{position:relative;width:100%;aspect-ratio:10/9;max-height:480px;
+  display:flex;align-items:flex-end;justify-content:center;overflow:hidden;
+  border-radius:220px 30px 200px 26px/26px 200px 30px 220px;
+  background:
+    radial-gradient(ellipse 90% 55% at 50% 108%, rgba(143,227,255,.14), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 70% -5%, rgba(255,176,207,.10), transparent 70%),
+    linear-gradient(180deg, rgba(11,16,38,.0) 0%, rgba(23,30,68,.5) 100%);
+  transition:filter 1s ease;
+}
+#stage.dream{filter:brightness(.55) saturate(.8);}
+#ground{position:absolute;bottom:8%;left:50%;transform:translateX(-50%);
+  width:66%;height:9%;border-radius:50%;
+  background:radial-gradient(ellipse at center, rgba(143,227,255,.20), transparent 70%);}
+#species-switch{position:absolute;top:2%;left:50%;transform:translateX(-50%);z-index:6;
+  display:flex;gap:6px;flex-wrap:wrap;justify-content:center;width:92%;}
+.sp-btn{font-size:12px;padding:5px 10px;border-radius:999px;cursor:pointer;
+  color:#dfe9ff;background:rgba(20,27,66,.62);border:1px solid rgba(143,227,255,.28);
+  backdrop-filter:blur(4px);transition:.2s;white-space:nowrap;}
+.sp-btn:hover{border-color:rgba(143,227,255,.6);}
+.sp-btn.active{background:linear-gradient(120deg,rgba(143,227,255,.9),rgba(255,176,207,.9));
+  color:#0b1026;border-color:transparent;font-weight:700;}
+@media(max-width:420px){.sp-btn{font-size:11px;padding:4px 8px;}}
+#pocchi-wrap{position:relative;width:min(76%,340px);z-index:2;transform-origin:50% 100%;}
+#pocchi-wrap.jump{animation:jump .7s ease;}
+@keyframes jump{0%,100%{transform:translateY(0);}30%{transform:translateY(-11%) rotate(-2deg);}
+  55%{transform:translateY(0);}72%{transform:translateY(-5%) rotate(1.5deg);}}
+#pocchi-wrap.nuzzle{animation:nuzzle 1.6s ease;}
+@keyframes nuzzle{0%,100%{transform:rotate(0);}25%{transform:rotate(-3.5deg);}60%{transform:rotate(3deg);}}
+#pocchi{width:100%;height:auto;display:block;filter:drop-shadow(0 10px 18px rgba(3,6,20,.55));
+  --fur:#cfd8e6; --furD:#b8c4d8;}
+
+/* --- ぽっちのパーツアニメ --- */
+#tail{transform-origin:97px 232px;animation:sway 2.6s ease-in-out infinite;}
+.excited #tail{animation:sway .45s ease-in-out infinite;}
+@keyframes sway{0%,100%{transform:rotate(-4deg);}50%{transform:rotate(9deg);}}
+#body-group{transform-origin:160px 240px;animation:breathe 3.4s ease-in-out infinite;}
+@keyframes breathe{0%,100%{transform:scale(1,1);}50%{transform:scale(1.012,.988);}}
+#head{transform-origin:160px 150px;transition:transform .5s ease;}
+.eating #head{transform:rotate(10deg) translate(6px,20px);}
+.sleeping #head{transform:rotate(-6deg) translate(-2px,8px);}
+#earL,#earR{transform-origin:50% 90%;}
+.happy-ears #earL{animation:earWiggleL .8s ease;} 
+.happy-ears #earR{animation:earWiggleR .8s ease;}
+@keyframes earWiggleL{0%,100%{transform:rotate(0);}30%{transform:rotate(-9deg);}65%{transform:rotate(5deg);}}
+@keyframes earWiggleR{0%,100%{transform:rotate(0);}30%{transform:rotate(9deg);}65%{transform:rotate(-5deg);}}
+.circuit{stroke:var(--cyan);animation:circuitPulse 3s ease-in-out infinite;}
+@keyframes circuitPulse{0%,100%{opacity:.55;}50%{opacity:1;}}
+#eyesOpen{transform-origin:160px 116px;}
+#eyesOpen.blink{animation:blink .22s ease;}
+@keyframes blink{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.08);}}
+#eyesHappy,#eyesSleep,#tongue{display:none;}
+.mood-happy #eyesOpen{display:none;} .mood-happy #eyesHappy{display:block;} .mood-happy #tongue{display:block;}
+.mood-sleep #eyesOpen{display:none;} .mood-sleep #eyesSleep{display:block;}
+
+/* --- 小道具 --- */
+.prop{position:absolute;z-index:3;font-size:clamp(1.6rem,7vw,2.4rem);opacity:0;pointer-events:none;
+  filter:drop-shadow(0 4px 6px rgba(0,0,0,.4));}
+#prop-bowl{bottom:6%;left:14%;} #prop-ball{bottom:10%;right:12%;}
+#prop-hand{top:18%;left:50%;transform:translateX(-50%);} 
+#prop-pen{top:22%;right:16%;}
+.prop.show{opacity:1;animation:propPop .5s ease;}
+#prop-ball.show{animation:ballBounce 1.8s ease;}
+@keyframes propPop{from{transform:scale(.3) rotate(-20deg);}to{transform:scale(1) rotate(0);}}
+@keyframes ballBounce{0%{transform:translateY(-140px);opacity:0;}15%{opacity:1;}
+  35%{transform:translateY(0);}55%{transform:translateY(-60px);}72%{transform:translateY(0);}
+  85%{transform:translateY(-24px);}100%{transform:translateY(0);}}
+#prop-hand.show{animation:petting 1.8s ease;}
+@keyframes petting{0%{opacity:0;}12%{opacity:1;}
+  25%{transform:translate(-50%,14px) rotate(-8deg);}45%{transform:translate(-50%,0) rotate(6deg);}
+  65%{transform:translate(-50%,14px) rotate(-8deg);}85%{transform:translate(-50%,0) rotate(6deg);}100%{opacity:0;}}
+#prop-pen.show{animation:penWrite 2s ease;}
+@keyframes penWrite{0%{opacity:0;}10%{opacity:1;}
+  30%{transform:translate(-8px,6px) rotate(-14deg);}50%{transform:translate(4px,0) rotate(-4deg);}
+  70%{transform:translate(-6px,6px) rotate(-14deg);}100%{opacity:0;transform:translate(6px,0);}}
+
+/* エフェクト（ハート・星） */
+#effects{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;}
+.fx{position:absolute;bottom:26%;font-size:1.4rem;animation:floatUp var(--d,1.8s) ease-out forwards;}
+@keyframes floatUp{0%{opacity:0;transform:translateY(0) scale(.5) rotate(0);}
+  15%{opacity:1;}100%{opacity:0;transform:translateY(-140px) scale(1.15) rotate(14deg);}}
+
+/* 吹き出し */
+#bubble{position:absolute;top:6%;left:50%;transform:translateX(-50%) rotate(-1deg);z-index:5;
+  max-width:88%;background:rgba(246,241,222,.96);color:#2a2f4a;
+  border:2px solid #2a2f4a;
+  border-radius:200px 18px 180px 16px/18px 160px 20px 200px;
+  padding:9px 16px;font-size:clamp(.82rem,3.2vw,.98rem);font-weight:700;text-align:center;
+  opacity:0;transition:opacity .3s ease;box-shadow:0 4px 14px rgba(3,6,20,.4);}
+#bubble.show{opacity:1;animation:bubblePop .35s ease;}
+@keyframes bubblePop{from{transform:translateX(-50%) scale(.7) rotate(-4deg);}to{transform:translateX(-50%) scale(1) rotate(-1deg);}}
+#bubble::after{content:"";position:absolute;bottom:-11px;left:50%;transform:translateX(-50%) rotate(18deg);
+  width:0;height:0;border:9px solid transparent;border-top-color:#2a2f4a;}
+
+/* ============ ステータス ============ */
+.stat{margin-bottom:11px;}
+.stat-head{display:flex;justify-content:space-between;align-items:baseline;font-size:.88rem;margin-bottom:4px;}
+.stat-head .val{font-size:.8rem;opacity:.85;font-variant-numeric:tabular-nums;}
+.bar{height:16px;border:2px solid var(--panel-line);
+  border-radius:120px 8px 120px 8px/8px 100px 8px 120px;
+  background:rgba(9,12,30,.6);overflow:hidden;position:relative;}
+.bar .fill{height:100%;width:60%;border-radius:inherit;
+  background:linear-gradient(90deg,var(--cyan-deep),var(--cyan) 55%,var(--pink));
+  transition:width .6s ease;position:relative;}
+.bar .fill::after{content:"";position:absolute;inset:0;
+  background:repeating-linear-gradient(-55deg,rgba(255,255,255,.18) 0 6px,transparent 6px 12px);}
+.bar.low .fill{background:linear-gradient(90deg,#e6707f,var(--pink-deep));}
+.kizuna{margin-top:10px;padding-top:9px;border-top:2px dashed rgba(246,241,222,.3);
+  font-size:.86rem;display:flex;justify-content:space-between;align-items:center;}
+.kizuna b{color:var(--pink);}
+
+/* ============ ボタン ============ */
+#actions{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;}
+#actions .wide{grid-column:1/-1;}
+button.act{
+  font-family:inherit;letter-spacing:.05em;cursor:pointer;
+  background:rgba(246,241,222,.1);color:var(--ink);
+  border:2.5px solid var(--panel-line);
+  border-radius:180px 14px 160px 12px/14px 150px 12px 180px;
+  padding:11px 8px;font-size:clamp(.86rem,3.4vw,.97rem);font-weight:700;
+  display:flex;align-items:center;justify-content:center;gap:.45em;
+  transition:transform .15s ease, background .2s ease, box-shadow .2s ease;
+  text-shadow:0 1px 3px rgba(3,6,20,.5);
+}
+button.act:nth-child(odd){transform:rotate(-.8deg);}
+button.act:nth-child(even){transform:rotate(.7deg);}
+button.act:hover:not(:disabled){background:rgba(143,227,255,.18);transform:rotate(0) translateY(-2px);
+  box-shadow:0 5px 16px rgba(143,227,255,.25);}
+button.act:active:not(:disabled){transform:translateY(1px) scale(.97);}
+button.act:focus-visible{outline:3px solid var(--cyan);outline-offset:3px;}
+button.act:disabled{opacity:.4;cursor:not-allowed;}
+button.act .ico{font-size:1.15em;}
+
+/* ============ 創作進捗 ============ */
+#progress-list{list-style:none;font-size:.85rem;line-height:1.55;}
+#progress-list li{padding:5px 2px 5px 1.5em;position:relative;border-bottom:1.5px dashed rgba(246,241,222,.22);
+  animation:entryIn .5s ease;}
+#progress-list li::before{content:"✎";position:absolute;left:.1em;color:var(--cyan);}
+#progress-list li.special::before{content:"✦";color:var(--pink);}
+#progress-list li.empty::before{content:"☾";color:var(--silver);}
+@keyframes entryIn{from{opacity:0;transform:translateX(-8px);}to{opacity:1;}}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) rotate(-1deg);
+  z-index:50;background:linear-gradient(120deg,rgba(143,227,255,.95),rgba(255,176,207,.95));
+  color:#222848;font-weight:700;padding:11px 20px;font-size:clamp(.85rem,3.3vw,1rem);
+  border:2.5px solid #222848;border-radius:200px 16px 180px 14px/16px 160px 14px 200px;
+  box-shadow:0 8px 26px rgba(3,6,20,.55);opacity:0;pointer-events:none;transition:opacity .35s ease;max-width:92vw;text-align:center;}
+#toast.show{opacity:1;animation:toastJump .5s ease;}
+@keyframes toastJump{0%{transform:translateX(-50%) translateY(20px) rotate(-1deg);}
+  60%{transform:translateX(-50%) translateY(-6px) rotate(-1deg);}100%{transform:translateX(-50%) translateY(0) rotate(-1deg);}}
+
+footer{text-align:center;font-size:.72rem;opacity:.55;margin-top:20px;letter-spacing:.15em;}
+
+@media (prefers-reduced-motion: reduce){
+  .aurora,#moon,#tail,#body-group,.circuit,.star{animation:none !important;}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== 夜空 ===== -->
+<div id="sky">
+  <div class="aurora a1"></div>
+  <div class="aurora a2"></div>
+  <div id="moon"></div>
+  <div id="shooting"></div>
+</div>
+<div class="hill" aria-hidden="true">
+  <svg viewBox="0 0 1000 160" preserveAspectRatio="none">
+    <path d="M0 160 L0 90 Q140 30 300 74 Q460 116 620 60 Q800 0 1000 66 L1000 160 Z" fill="#080c22" opacity=".9"/>
+    <path d="M0 160 L0 120 Q200 74 420 108 Q640 142 820 100 Q920 78 1000 96 L1000 160 Z" fill="#05081a"/>
+  </svg>
+</div>
+
+<div id="app">
+<header>
+  <h1>AIぽっち おせわシミュレーター <span class="paw">🐾</span></h1>
+  <div class="subtitle">宵の星とハスキーと</div>
+</header>
+
+<main>
+  <!-- ===== 左：ステージ ===== -->
+  <section class="card" id="stage-card" aria-label="ぽっちのようす">
+    <div id="stage">
+      <div id="bubble" role="status" aria-live="polite">わん！ぼく、ぽっち！🐾</div>
+      <div id="species-switch" role="tablist" aria-label="ぽっちのすがた">
+        <button class="sp-btn active" data-sp="husky" role="tab" aria-selected="true">🐺 ハスキー</button>
+        <button class="sp-btn" data-sp="fox" role="tab" aria-selected="false">🦊 キツネ</button>
+        <button class="sp-btn" data-sp="cat" role="tab" aria-selected="false">🐱 ねこ</button>
+        <button class="sp-btn" data-sp="rabbit" role="tab" aria-selected="false">🐰 うさぎ</button>
+      </div>
+      <div id="ground"></div>
+
+      <div id="pocchi-wrap">
+        <!-- ============ ぽっち（全身SVG） ============ -->
+        <svg id="pocchi" viewBox="0 0 320 340" xmlns="http://www.w3.org/2000/svg" role="img"
+             aria-label="シルバーの毛に水色とピンクの模様が入ったハスキー犬、ぽっち">
+          <defs>
+            <linearGradient id="furSilver" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#dfe6f2"/><stop offset="1" stop-color="#bfcbdf"/>
+            </linearGradient>
+            <linearGradient id="furSilverDark" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#cdd7e8"/><stop offset="1" stop-color="#aab8d0"/>
+            </linearGradient>
+            <radialGradient id="tagGlow" cx=".4" cy=".35" r=".9">
+              <stop offset="0" stop-color="#c9f2ff"/><stop offset="1" stop-color="#57bfe6"/>
+            </radialGradient>
+            <!-- キツネ：オレンジ -->
+            <linearGradient id="furFox" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#f4a45c"/><stop offset="1" stop-color="#e07f36"/>
+            </linearGradient>
+            <linearGradient id="furFoxDark" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#e58c44"/><stop offset="1" stop-color="#c96a28"/>
+            </linearGradient>
+            <!-- 猫：アメショ シルバータビー -->
+            <linearGradient id="furCat" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#d6dce4"/><stop offset="1" stop-color="#aeb7c4"/>
+            </linearGradient>
+            <linearGradient id="furCatDark" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#c2cad6"/><stop offset="1" stop-color="#98a2b2"/>
+            </linearGradient>
+            <!-- うさぎ：ピンク -->
+            <linearGradient id="furRabbit" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#ffe3ee"/><stop offset="1" stop-color="#ffc2da"/>
+            </linearGradient>
+            <linearGradient id="furRabbitDark" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#ffd0e2"/><stop offset="1" stop-color="#f7a8c8"/>
+            </linearGradient>
+          </defs>
+
+          <g id="body-group">
+            <!-- しっぽ（ピンクの差し色）／種類で切替 -->
+            <g id="tail">
+              <!-- ハスキー：ふさっと巻いた尾 -->
+              <g class="tail-part" data-sp="husky">
+                <path d="M100 236 C 58 240 30 208 40 168 C 46 143 66 130 82 138
+                         C 90 142 92 152 86 158 C 70 154 58 168 60 188
+                         C 62 210 80 222 104 220 Z" fill="var(--furD)" class="furbodyD"/>
+                <path d="M42 172 C 44 152 58 138 74 140 C 80 141 84 148 80 154
+                         C 68 152 56 162 54 178 Z" fill="#ffb0cf" opacity=".85"/>
+              </g>
+              <!-- キツネ：大きくふさふさ、先が黒 -->
+              <g class="tail-part" data-sp="fox" style="display:none">
+                <path d="M104 240 C 52 246 16 206 26 156 C 32 126 56 108 78 120
+                         C 92 128 92 146 82 152 C 60 150 44 168 46 196
+                         C 48 224 74 238 108 230 Z" fill="var(--furD)" class="furbodyD"/>
+                <path d="M40 150 C 46 128 62 112 80 120 C 66 122 52 138 48 162
+                         C 46 178 50 190 60 200 C 44 194 36 172 40 150 Z" fill="#fff3e6" opacity=".8"/>
+                <path d="M26 158 C 30 132 44 116 60 122 C 46 128 36 146 34 168
+                         C 33 182 40 194 52 202 C 34 196 22 180 26 158 Z" fill="#23262e"/>
+              </g>
+              <!-- ねこ：細く長くしなる尾 -->
+              <g class="tail-part" data-sp="cat" style="display:none">
+                <path d="M108 244 C 74 250 52 236 44 208 C 38 186 46 160 66 150
+                         C 76 145 84 152 80 160 C 66 166 62 184 66 200
+                         C 70 218 86 228 110 226 Z" fill="var(--furD)" class="furbodyD"
+                      stroke="#aab8d0" stroke-width="1"/>
+                <path d="M60 156 q-6 20 4 40" fill="none" stroke="#ffb0cf" stroke-width="4"
+                      stroke-linecap="round" opacity=".8"/>
+              </g>
+              <!-- うさぎ：丸いポンポン -->
+              <g class="tail-part" data-sp="rabbit" style="display:none">
+                <circle cx="96" cy="238" r="26" fill="#f8fbff"/>
+                <circle cx="96" cy="238" r="26" fill="var(--furD)" class="furbodyD" opacity=".25"/>
+                <circle cx="88" cy="232" r="6" fill="#ffb0cf" opacity=".5"/>
+              </g>
+            </g>
+
+            <!-- 後ろ足（腰まわり） -->
+            <ellipse cx="98" cy="256" rx="42" ry="38" fill="var(--furD)" class="furbodyD"/>
+            <ellipse cx="222" cy="258" rx="40" ry="36" fill="var(--furD)" class="furbodyD"/>
+            <!-- 腰の模様：水色の三日月とピンクのしずく -->
+            <path d="M78 244 a22 22 0 0 1 26 -18 a17 17 0 0 0 -14 24 a22 22 0 0 1 -12 -6 Z" fill="#8fe3ff" opacity=".8"/>
+            <path d="M232 244 c8 8 8 18 0 24 c-8 -6 -8 -16 0 -24 Z" fill="#ffb0cf" opacity=".85"/>
+            <!-- 後ろ足のつま先 -->
+            <ellipse cx="92" cy="293" rx="19" ry="11" fill="#f5f8ff"/>
+            <ellipse cx="228" cy="294" rx="19" ry="11" fill="#f5f8ff"/>
+
+            <!-- 胴体 -->
+            <path d="M92 236 C 88 168 118 128 160 128 C 202 128 232 168 228 236
+                     C 226 276 198 296 160 296 C 122 296 94 276 92 236 Z" fill="var(--fur)" class="furbody"/>
+            <!-- 背中の水色ストリーク -->
+            <path d="M118 158 q 10 -14 24 -18 q -4 14 -16 22 Z" fill="#8fe3ff" opacity=".65"/>
+            <path d="M198 162 q -8 -14 -20 -20 q 2 14 12 23 Z" fill="#8fe3ff" opacity=".5"/>
+
+            <!-- 胸の白いふわふわ -->
+            <path d="M160 168 C 186 168 200 196 198 232 C 196 268 182 288 160 288
+                     C 138 288 124 268 122 232 C 120 196 134 168 160 168 Z" fill="#f8fbff"/>
+            <path d="M140 178 l-7 -12 l13 6 l4 -13 l7 12 l12 -7 l-5 13" fill="none"
+                  stroke="#f8fbff" stroke-width="7" stroke-linecap="round"/>
+
+            <!-- 前足 -->
+            <path d="M132 218 h22 v58 q0 14 -11 14 q-11 0 -11 -14 Z" fill="#eef3fb"/>
+            <path d="M168 218 h22 v58 q0 14 -11 14 q-11 0 -11 -14 Z" fill="#eef3fb"/>
+            <ellipse cx="143" cy="291" rx="15" ry="10" fill="#f8fbff"/>
+            <ellipse cx="179" cy="291" rx="15" ry="10" fill="#f8fbff"/>
+            <path d="M137 291 v6 M143 293 v6 M149 291 v6" stroke="#c3cfe2" stroke-width="2" stroke-linecap="round"/>
+            <path d="M173 291 v6 M179 293 v6 M185 291 v6" stroke="#c3cfe2" stroke-width="2" stroke-linecap="round"/>
+
+            <!-- ===== 頭 ===== -->
+            <g id="head">
+              <!-- 耳（外側黒・内側白・水色サーキット） -->
+              <g id="earL">
+                <!-- ハスキー：立ち三角 -->
+                <g class="ear-part" data-sp="husky">
+                  <path d="M112 78 Q 92 22 96 12 Q 100 4 112 12 Q 140 32 148 62 Q 130 76 112 78 Z" fill="#23262e"/>
+                  <path d="M115 68 Q 103 34 105 24 Q 122 36 132 58 Q 124 66 115 68 Z" fill="#f6f8ff"/>
+                  <path class="circuit" d="M112 60 L112 44 L120 44 L120 33" fill="none" stroke-width="2.4" stroke-linecap="round"/>
+                  <circle class="circuit" cx="112" cy="60" r="2.4" fill="#8fe3ff" stroke="none"/>
+                  <circle class="circuit" cx="120" cy="33" r="2.4" fill="#8fe3ff" stroke="none"/>
+                </g>
+                <!-- キツネ：大きく尖った三角 -->
+                <g class="ear-part" data-sp="fox" style="display:none">
+                  <path d="M108 80 Q 78 14 82 2 Q 88 -6 100 4 Q 138 30 148 66 Q 128 80 108 80 Z" fill="#23262e"/>
+                  <path d="M112 70 Q 92 26 94 16 Q 120 34 134 62 Q 122 70 112 70 Z" fill="#f6f8ff"/>
+                  <path class="circuit" d="M110 62 L110 42 L118 42 L118 28" fill="none" stroke-width="2.4" stroke-linecap="round"/>
+                  <circle class="circuit" cx="110" cy="62" r="2.4" fill="#8fe3ff" stroke="none"/>
+                  <circle class="circuit" cx="118" cy="28" r="2.4" fill="#8fe3ff" stroke="none"/>
+                </g>
+                <!-- ねこ：小さめ三角 -->
+                <g class="ear-part" data-sp="cat" style="display:none">
+                  <path d="M118 80 Q 104 44 108 34 Q 114 28 124 36 Q 144 52 150 74 Q 134 82 118 80 Z" fill="#23262e"/>
+                  <path d="M121 72 Q 113 50 116 42 Q 132 54 140 70 Q 130 76 121 72 Z" fill="#f6f8ff"/>
+                  <path class="circuit" d="M120 66 L120 52 L127 52" fill="none" stroke-width="2.2" stroke-linecap="round"/>
+                  <circle class="circuit" cx="127" cy="52" r="2.2" fill="#8fe3ff" stroke="none"/>
+                </g>
+                <!-- うさぎ：長い立ち耳 -->
+                <g class="ear-part" data-sp="rabbit" style="display:none">
+                  <path d="M120 84 Q 104 30 108 -4 Q 112 -22 126 -18 Q 138 -12 138 18 Q 138 56 138 82 Q 128 86 120 84 Z" fill="#23262e"/>
+                  <path d="M123 76 Q 114 34 117 0 Q 120 -12 127 -10 Q 130 12 130 40 Q 130 60 129 74 Q 126 78 123 76 Z" fill="#f6f8ff"/>
+                  <path d="M124 70 Q 120 40 122 6" fill="none" stroke="#ffb0cf" stroke-width="3.4" stroke-linecap="round" opacity=".7"/>
+                  <path class="circuit" d="M126 60 L126 44 L132 44" fill="none" stroke-width="2.2" stroke-linecap="round"/>
+                  <circle class="circuit" cx="132" cy="44" r="2.2" fill="#8fe3ff" stroke="none"/>
+                </g>
+              </g>
+              <g id="earR">
+                <!-- ハスキー：立ち三角 -->
+                <g class="ear-part" data-sp="husky">
+                  <path d="M208 78 Q 228 22 224 12 Q 220 4 208 12 Q 180 32 172 62 Q 190 76 208 78 Z" fill="#23262e"/>
+                  <path d="M205 68 Q 217 34 215 24 Q 198 36 188 58 Q 196 66 205 68 Z" fill="#f6f8ff"/>
+                  <path class="circuit" d="M208 60 L208 44 L200 44 L200 33" fill="none" stroke-width="2.4" stroke-linecap="round"/>
+                  <circle class="circuit" cx="208" cy="60" r="2.4" fill="#8fe3ff" stroke="none"/>
+                  <circle class="circuit" cx="200" cy="33" r="2.4" fill="#8fe3ff" stroke="none"/>
+                </g>
+                <!-- キツネ：大きく尖った三角 -->
+                <g class="ear-part" data-sp="fox" style="display:none">
+                  <path d="M212 80 Q 242 14 238 2 Q 232 -6 220 4 Q 182 30 172 66 Q 192 80 212 80 Z" fill="#23262e"/>
+                  <path d="M208 70 Q 228 26 226 16 Q 200 34 186 62 Q 198 70 208 70 Z" fill="#f6f8ff"/>
+                  <path class="circuit" d="M210 62 L210 42 L202 42 L202 28" fill="none" stroke-width="2.4" stroke-linecap="round"/>
+                  <circle class="circuit" cx="210" cy="62" r="2.4" fill="#8fe3ff" stroke="none"/>
+                  <circle class="circuit" cx="202" cy="28" r="2.4" fill="#8fe3ff" stroke="none"/>
+                </g>
+                <!-- ねこ：小さめ三角 -->
+                <g class="ear-part" data-sp="cat" style="display:none">
+                  <path d="M202 80 Q 216 44 212 34 Q 206 28 196 36 Q 176 52 170 74 Q 186 82 202 80 Z" fill="#23262e"/>
+                  <path d="M199 72 Q 207 50 204 42 Q 188 54 180 70 Q 190 76 199 72 Z" fill="#f6f8ff"/>
+                  <path class="circuit" d="M200 66 L200 52 L193 52" fill="none" stroke-width="2.2" stroke-linecap="round"/>
+                  <circle class="circuit" cx="193" cy="52" r="2.2" fill="#8fe3ff" stroke="none"/>
+                </g>
+                <!-- うさぎ：長い立ち耳 -->
+                <g class="ear-part" data-sp="rabbit" style="display:none">
+                  <path d="M200 84 Q 216 30 212 -4 Q 208 -22 194 -18 Q 182 -12 182 18 Q 182 56 182 82 Q 192 86 200 84 Z" fill="#23262e"/>
+                  <path d="M197 76 Q 206 34 203 0 Q 200 -12 193 -10 Q 190 12 190 40 Q 190 60 191 74 Q 194 78 197 76 Z" fill="#f6f8ff"/>
+                  <path d="M196 70 Q 200 40 198 6" fill="none" stroke="#ffb0cf" stroke-width="3.4" stroke-linecap="round" opacity=".7"/>
+                  <path class="circuit" d="M194 60 L194 44 L188 44" fill="none" stroke-width="2.2" stroke-linecap="round"/>
+                  <circle class="circuit" cx="188" cy="44" r="2.2" fill="#8fe3ff" stroke="none"/>
+                </g>
+              </g>
+
+              <!-- 顔ベース -->
+              <ellipse cx="160" cy="116" rx="63" ry="57" fill="var(--fur)" class="furbody"/>
+              <!-- ほっぺの毛のはね -->
+              <path d="M98 122 l-12 2 l10 7 l-11 5 l12 4" fill="none" stroke="#c3cfe2" stroke-width="5" stroke-linecap="round"/>
+              <path d="M222 122 l12 2 l-10 7 l11 5 l-12 4" fill="none" stroke="#c3cfe2" stroke-width="5" stroke-linecap="round"/>
+
+              <!-- ハスキーマスク（白い口まわり＋まゆの白斑点） -->
+              <path d="M160 96 C 190 96 206 118 204 142 C 202 164 184 174 160 174
+                       C 136 174 118 164 116 142 C 114 118 130 96 160 96 Z" fill="#fbfdff"/>
+              <ellipse cx="133" cy="88" rx="11" ry="8" fill="#fbfdff"/>
+              <ellipse cx="187" cy="88" rx="11" ry="8" fill="#fbfdff"/>
+              <!-- おでこのピンクマーク＋水色の流れ模様 -->
+              <path d="M160 66 c6 6 6 13 0 18 c-6 -5 -6 -12 0 -18 Z" fill="#ffb0cf"/>
+              <path d="M138 74 q-8 4 -11 12 q10 -1 15 -8 Z" fill="#8fe3ff" opacity=".7"/>
+              <path d="M182 74 q8 4 11 12 q-10 -1 -15 -8 Z" fill="#8fe3ff" opacity=".7"/>
+
+              <!-- 目：ひらき（水色） -->
+              <g id="eyesOpen">
+                <ellipse cx="135" cy="112" rx="10" ry="12" fill="#6fd4ff" stroke="#20364e" stroke-width="2"/>
+                <circle cx="136" cy="114" r="4.6" fill="#1c2a3f"/>
+                <circle cx="132" cy="108" r="3" fill="#ffffff"/>
+                <circle cx="139" cy="118" r="1.4" fill="#d9f4ff"/>
+                <ellipse cx="185" cy="112" rx="10" ry="12" fill="#6fd4ff" stroke="#20364e" stroke-width="2"/>
+                <circle cx="186" cy="114" r="4.6" fill="#1c2a3f"/>
+                <circle cx="182" cy="108" r="3" fill="#ffffff"/>
+                <circle cx="189" cy="118" r="1.4" fill="#d9f4ff"/>
+              </g>
+              <!-- 目：にっこり -->
+              <g id="eyesHappy" fill="none" stroke="#20364e" stroke-width="3.4" stroke-linecap="round">
+                <path d="M125 114 q10 -11 20 0"/>
+                <path d="M175 114 q10 -11 20 0"/>
+              </g>
+              <!-- 目：すやすや -->
+              <g id="eyesSleep" fill="none" stroke="#20364e" stroke-width="3.2" stroke-linecap="round">
+                <path d="M126 114 q10 7 19 0"/>
+                <path d="M176 114 q10 7 19 0"/>
+              </g>
+
+              <!-- ほっぺの赤らみ -->
+              <ellipse cx="120" cy="134" rx="9" ry="5.5" fill="#ffb0cf" opacity=".55"/>
+              <ellipse cx="200" cy="134" rx="9" ry="5.5" fill="#ffb0cf" opacity=".55"/>
+
+              <!-- 鼻・口 -->
+              <path d="M152 141 q8 -6 16 0 q2 8 -8 12 q-10 -4 -8 -12 Z" fill="#2a2a35"/>
+              <path d="M160 153 v6 M160 159 q-7 8 -15 5 M160 159 q7 8 15 5"
+                    fill="none" stroke="#3a4258" stroke-width="2.6" stroke-linecap="round"/>
+              <path id="tongue" d="M154 164 q6 10 12 0 q0 9 -6 10 q-6 -1 -6 -10 Z" fill="#ff8fb8"/>
+              <!-- ねこ／うさぎ用ヒゲ（デフォルト非表示） -->
+              <g id="whiskers" style="display:none" stroke="#e8eefb" stroke-width="1.6" stroke-linecap="round" opacity=".85">
+                <path d="M120 146 q-24 -4 -34 -1 M122 152 q-24 2 -33 8" fill="none"/>
+                <path d="M200 146 q24 -4 34 -1 M198 152 q24 2 33 8" fill="none"/>
+              </g>
+
+            <!-- 黒い首輪（水色に光るタグ） -->
+            <path d="M116 166 Q 160 186 204 166 L 204 180 Q 160 200 116 180 Z" fill="#23262e"/>
+            <circle cx="160" cy="192" r="9" fill="url(#tagGlow)" stroke="#23262e" stroke-width="2"/>
+            <path d="M156 192 a4 4 0 0 1 8 0 M158 190 v4 M162 190 v4" stroke="#173a4d" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </div>
+
+      <!-- 小道具 -->
+      <div class="prop" id="prop-bowl">🍖</div>
+      <div class="prop" id="prop-ball">🎾</div>
+      <div class="prop" id="prop-hand">🖐️</div>
+      <div class="prop" id="prop-pen">🖊️</div>
+      <div id="effects"></div>
+    </div>
+  </section>
+
+  <!-- ===== 右：ステータス＆操作 ===== -->
+  <div>
+    <section class="card" aria-label="ぽっちのステータス">
+      <h2>🌟 ぽっちのようす</h2>
+      <div class="stat"><div class="stat-head"><span>⚡ 元気</span><span class="val" id="v-genki">70</span></div>
+        <div class="bar" id="b-genki"><div class="fill"></div></div></div>
+      <div class="stat"><div class="stat-head"><span>🍖 満腹度</span><span class="val" id="v-manpuku">60</span></div>
+        <div class="bar" id="b-manpuku"><div class="fill"></div></div></div>
+      <div class="stat"><div class="stat-head"><span>💗 かわいさ</span><span class="val" id="v-kawaii">80</span></div>
+        <div class="bar" id="b-kawaii"><div class="fill"></div></div></div>
+      <div class="stat"><div class="stat-head"><span>🌙 睡眠度</span><span class="val" id="v-suimin">70</span></div>
+        <div class="bar" id="b-suimin"><div class="fill"></div></div></div>
+      <div class="kizuna"><span>なかよし度</span><b id="kizuna-lv">Lv.1 ♡</b></div>
+    </section>
+
+    <section class="card" aria-label="お世話ボタン">
+      <h2>🐾 おせわする</h2>
+      <div id="actions">
+        <button class="act" data-act="feed"><span class="ico">🍖</span>餌やり</button>
+        <button class="act" data-act="pet"><span class="ico">🤍</span>撫でる</button>
+        <button class="act" data-act="play"><span class="ico">🎾</span>遊ぶ</button>
+        <button class="act" data-act="sleep"><span class="ico">🌙</span>一緒に寝る</button>
+        <button class="act wide" data-act="create"><span class="ico">🎨</span>一緒に創作する</button>
+      </div>
+    </section>
+
+    <section class="card" aria-label="今日の創作進捗">
+      <h2>✎ 今日の創作進捗</h2>
+      <ul id="progress-list">
+        <li class="empty">まだ白紙のまま。ぽっちと一緒に、今夜のひと筆を…</li>
+      </ul>
+    </section>
+  </div>
+</main>
+
+<footer>― AIぽっち実験室 ｜ 星のふる夜に、ハスキーと ―</footer>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* ================= 状態 ================= */
+const S = { genki:70, manpuku:60, kawaii:80, suimin:70 };
+let kizuna = 0, sousaku = 0, busy = false;
+let flagPerfect = false, flagKizuna5 = false, flagKizuna12 = false;
+
+const $ = id => document.getElementById(id);
+const stage = $("stage"), pocchi = $("pocchi"), wrap = $("pocchi-wrap");
+const bubble = $("bubble"), effects = $("effects"), toast = $("toast");
+
+const clamp = v => Math.max(0, Math.min(100, v));
+
+/* ================= すがた切替 ================= */
+let currentSp = "husky";
+const FUR = {
+  husky:  { fur:"#cfd8e6", furD:"#b8c4d8" },
+  fox:    { fur:"#f4a45c", furD:"#e07f36" },
+  cat:    { fur:"#d6dce4", furD:"#aeb7c4" },
+  rabbit: { fur:"#ffe3ee", furD:"#ffc2da" },
+};
+const SPECIES = {
+  husky:  { label:"ハスキー", whisker:false, hi:"わん！ぼく、ぽっち！今日もハスキーだよ🐺" },
+  fox:    { label:"キツネ",   whisker:false, hi:"こんっ！きつねになったよ、めがまんまるでしょ🦊" },
+  cat:    { label:"ねこ",     whisker:true,  hi:"にゃ〜ん。ねこになったよ、なでてほしいな🐱" },
+  rabbit: { label:"うさぎ",   whisker:true,  hi:"ぴょんっ！うさぎだよ、みみながいでしょ🐰" },
+};
+/* 種類ごとのお世話メッセージ（きつね・ねこ・うさぎはひらがな） */
+const SP_MSG = {
+  husky:{
+    feed:["はぐはぐ…！おいしいわん！🍖","ごはんの時間、いちばん好き！","もぐもぐ…しあわせの味…"],
+    feedFull:["おなかぱんぱん…でも食べちゃう🍖","わふ…もう入らないかも…"],
+    pet:["わふ〜ん…そこ、きもちいい…💕","もっと撫でて…しっぽ止まらないわん","えへへ…ご主人の手、あったかい"],
+    play:["ボールだ！まてまて〜！🎾","キャッチ！ぼく、名ハンターわん！","もういっかい投げて！"],
+    tired:"はふ…ちょっと元気が足りないかも…🌙"
+  },
+  fox:{
+    feed:["こくっ…おいしいっ！🍖","はぐはぐ、きつねもごはんだいすき","もぐもぐ…しあわせ…"],
+    feedFull:["おなかいっぱい…でもたべちゃう","うぅ…もうはいらないかも…"],
+    pet:["こんっ…そこきもちいい…💕","もっとなでて…しっぽふるふる","えへへ…あったかい…"],
+    play:["それとって、こんっ！🎾","まてまて〜！","もういっかいなげて！"],
+    tired:"はふ…ちょっとつかれちゃった…🌙"
+  },
+  cat:{
+    feed:["ぺろぺろ…おいしいにゃ🍖","にゃむにゃむ…だいすき","ごろごろ…しあわせにゃ…"],
+    feedFull:["おなかいっぱいにゃ…","もうたべられないにゃ…"],
+    pet:["ごろごろ…きもちいいにゃ💕","もっとなでてにゃ…","のどがなっちゃうにゃ〜"],
+    play:["しゃっ！つかまえるにゃ🎾","まてまて〜にゃ！","もっとあそぼにゃ！"],
+    tired:"ふにゃ…ちょっとねむいにゃ…🌙"
+  },
+  rabbit:{
+    feed:["もぐもぐ…おいしいっ🥕","はむはむ、だいすき！","しあわせのあじ…"],
+    feedFull:["おなかぽんぽん…","もうはいらないよ〜"],
+    pet:["ふるふる…きもちいい💕","もっとなでてほしいな…","えへへ…あったかいね"],
+    play:["ぴょんぴょん！まてまて🎾","つかまえた〜！","もういっかいあそぼ！"],
+    tired:"ふぅ…ちょっとつかれちゃった…🌙"
+  }
+};
+function spm(act){
+  const m = (SP_MSG[currentSp] && SP_MSG[currentSp][act]) || SP_MSG.husky[act];
+  return m;
+}
+function setSpecies(sp){
+  currentSp = sp;
+  document.querySelectorAll(".ear-part,.tail-part").forEach(g=>{
+    g.style.display = (g.dataset.sp === sp) ? "" : "none";
+  });
+  // 毛色をCSS変数で切替
+  pocchi.style.setProperty("--fur", FUR[sp].fur);
+  pocchi.style.setProperty("--furD", FUR[sp].furD);
+  const wh = $("whiskers");
+  if(wh) wh.style.display = SPECIES[sp].whisker ? "" : "none";
+  document.querySelectorAll(".sp-btn").forEach(b=>{
+    const on = b.dataset.sp === sp;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  say(SPECIES[sp].hi, 2600);
+  wrap.classList.remove("nuzzle"); void wrap.offsetWidth; wrap.classList.add("nuzzle");
+}
+document.getElementById("species-switch").addEventListener("click", e=>{
+  const b = e.target.closest(".sp-btn");
+  if(b) setSpecies(b.dataset.sp);
+});
+
+/* ================= 星をまく ================= */
+(function makeStars(){
+  const sky = $("sky");
+  for(let i=0;i<90;i++){
+    const s = document.createElement("div");
+    s.className = "star";
+    const size = Math.random()*2.4 + .8;
+    s.style.width = s.style.height = size + "px";
+    s.style.left = Math.random()*100 + "vw";
+    s.style.top  = Math.random()*88 + "vh";
+    s.style.setProperty("--tw", (Math.random()*3.5+1.8).toFixed(2) + "s");
+    s.style.animationDelay = (Math.random()*4).toFixed(2) + "s";
+    sky.appendChild(s);
+  }
+})();
+/* 流れ星（ときどき） */
+setInterval(()=>{ if(Math.random()<.55) shootStar(); }, 12000);
+function shootStar(){
+  const sh = $("shooting");
+  sh.style.top = (6 + Math.random()*22) + "vh";
+  sh.classList.remove("go"); void sh.offsetWidth; sh.classList.add("go");
+}
+
+/* ================= 表示更新 ================= */
+function render(){
+  [["genki","⚡"],["manpuku","🍖"],["kawaii","💗"],["suimin","🌙"]].forEach(([k])=>{
+    const v = Math.round(S[k]);
+    $("v-"+k).textContent = v;
+    const bar = $("b-"+k);
+    bar.querySelector(".fill").style.width = v + "%";
+    bar.classList.toggle("low", v < 25);
+  });
+  const lv = Math.floor(kizuna/5)+1;
+  $("kizuna-lv").textContent = "Lv." + lv + " " + "♡".repeat(Math.min(lv,5));
+}
+
+/* ================= 吹き出し ================= */
+let bubbleTimer = null;
+function say(msg, ms=2600){
+  bubble.textContent = msg;
+  bubble.classList.remove("show"); void bubble.offsetWidth; bubble.classList.add("show");
+  clearTimeout(bubbleTimer);
+  bubbleTimer = setTimeout(()=>bubble.classList.remove("show"), ms);
+}
+
+/* ================= トースト（達成メッセージ） ================= */
+let toastTimer = null;
+function announce(msg, ms=3600){
+  toast.textContent = msg;
+  toast.classList.remove("show"); void toast.offsetWidth; toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>toast.classList.remove("show"), ms);
+}
+
+/* ================= エフェクト ================= */
+function burst(emojis, n=6){
+  for(let i=0;i<n;i++){
+    const e = document.createElement("span");
+    e.className = "fx";
+    e.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+    e.style.left = (26 + Math.random()*48) + "%";
+    e.style.bottom = (22 + Math.random()*18) + "%";
+    const d = (1.4 + Math.random()*1.1);
+    e.style.setProperty("--d", d.toFixed(2)+"s");
+    e.style.animationDelay = (Math.random()*.5).toFixed(2)+"s";
+    effects.appendChild(e);
+    setTimeout(()=>e.remove(), (d+.7)*1000);
+  }
+}
+function showProp(id, ms){
+  const p = $(id);
+  p.classList.remove("show"); void p.offsetWidth; p.classList.add("show");
+  setTimeout(()=>p.classList.remove("show"), ms);
+}
+
+/* ================= 表情 ================= */
+function setMood(mood){ // "" | "happy" | "sleep"
+  pocchi.classList.remove("mood-happy","mood-sleep");
+  if(mood) pocchi.classList.add("mood-"+mood);
+}
+/* まばたき */
+setInterval(()=>{
+  if(pocchi.classList.contains("mood-happy") || pocchi.classList.contains("mood-sleep")) return;
+  const eyes = $("eyesOpen");
+  eyes.classList.add("blink");
+  setTimeout(()=>eyes.classList.remove("blink"), 240);
+}, 3200 + Math.random()*1800);
+
+/* ================= 進捗ログ ================= */
+function addProgress(text, special){
+  const list = $("progress-list");
+  const empty = list.querySelector(".empty");
+  if(empty) empty.remove();
+  const li = document.createElement("li");
+  if(special) li.classList.add("special");
+  li.textContent = text;
+  list.prepend(li);
+  while(list.children.length > 6) list.lastChild.remove();
+}
+
+/* ================= アクション定義 ================= */
+const CREATION_LADDER = [
+  "ラフスケッチが1枚できた！",
+  "ネームが1ページ進んだ！",
+  "線画がきれいに引けた！",
+  "ベタとトーンが仕上がった！",
+  "扉絵に星をちりばめた！",
+  "原稿がまるごと1話ぶん完成！✨"
+];
+
+const ACTIONS = {
+  feed:{
+    dur:2200,
+    run(){
+      pocchi.classList.add("eating");
+      showProp("prop-bowl", 2200);
+      setTimeout(()=>burst(["🍖","💕","😋"],5), 500);
+      setTimeout(()=>{ pocchi.classList.remove("eating"); setMood("happy"); wrap.classList.add("jump"); }, 1400);
+      const msgs = S.manpuku > 92 ? spm("feedFull") : spm("feed");
+      say(pick(msgs));
+      S.manpuku = clamp(S.manpuku + 24); S.genki = clamp(S.genki + 6);
+    }
+  },
+  pet:{
+    dur:2100,
+    run(){
+      setMood("happy");
+      pocchi.classList.add("happy-ears","excited");
+      wrap.classList.add("nuzzle");
+      showProp("prop-hand", 1900);
+      burst(["💕","✨","🤍"],7);
+      say(pick(spm("pet")));
+      S.kawaii = clamp(S.kawaii + 14); S.genki = clamp(S.genki + 5);
+    }
+  },
+  play:{
+    dur:2400,
+    cond(){ if(S.genki < 15){ say(spm("tired")); return false; } return true; },
+    run(){
+      setMood("happy");
+      pocchi.classList.add("excited");
+      showProp("prop-ball", 2000);
+      setTimeout(()=>{ wrap.classList.add("jump"); }, 300);
+      setTimeout(()=>{ wrap.classList.remove("jump"); void wrap.offsetWidth; wrap.classList.add("jump"); }, 1200);
+      burst(["🎾","✨","💨"],6);
+      say(pick(spm("play")));
+      S.kawaii = clamp(S.kawaii + 10); S.genki = clamp(S.genki - 10); S.manpuku = clamp(S.manpuku - 6);
+    }
+  },
+  sleep:{
+    dur:4200,
+    run(){
+      setMood("sleep");
+      pocchi.classList.add("sleeping");
+      stage.classList.add("dream");
+      burst(["💤","🌙","⭐"],6);
+      say("すぅ…すぅ…いっしょの夢、みようね…💤", 3800);
+      setTimeout(()=>burst(["💤","✨"],4), 2000);
+      setTimeout(()=>{
+        stage.classList.remove("dream");
+        pocchi.classList.remove("sleeping");
+        setMood("happy");
+        say("ふわ…よく寝た！星の夢だったわん⭐");
+      }, 3400);
+      S.suimin = clamp(S.suimin + 28); S.genki = clamp(S.genki + 18);
+    }
+  },
+  create:{
+    dur:2600,
+    cond(){ if(S.genki < 25){ say("創作は全力でやりたいから…少し休ませて🌙"); return false; } return true; },
+    run(){
+      setMood("happy");
+      showProp("prop-pen", 2200);
+      pocchi.classList.add("happy-ears");
+      burst(["🎨","✎","✨","⭐"],7);
+      say(pick(["今夜もいいの描こうね！🎨","ぼくがネタ出し係やるわん✎","インクは星のしずく色で…"]));
+      S.genki = clamp(S.genki - 14); S.kawaii = clamp(S.kawaii + 6); S.suimin = clamp(S.suimin - 5);
+      sousaku++;
+      const idx = Math.min(sousaku, CREATION_LADDER.length) - 1;
+      const text = CREATION_LADDER[idx];
+      setTimeout(()=>{
+        addProgress(text, idx === CREATION_LADDER.length-1);
+        announce("✎ 今日の創作進捗：" + text);
+        if(idx === CREATION_LADDER.length-1) shootStar();
+      }, 1500);
+    }
+  }
+};
+
+function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+
+/* ================= ボタン処理 ================= */
+const buttons = document.querySelectorAll("button.act");
+buttons.forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    if(busy) return;
+    const act = ACTIONS[btn.dataset.act];
+    if(act.cond && !act.cond()) return;
+    busy = true;
+    buttons.forEach(b=>b.disabled = true);
+    act.run();
+    kizuna++;
+    render();
+    checkAchievements();
+    setTimeout(()=>{
+      busy = false;
+      buttons.forEach(b=>b.disabled = false);
+      pocchi.classList.remove("happy-ears","excited","eating","sleeping");
+      wrap.classList.remove("jump","nuzzle");
+      setMood("");
+      render();
+    }, act.dur);
+  });
+});
+
+/* ================= 実績 ================= */
+function checkAchievements(){
+  if(!flagPerfect && S.genki>=80 && S.manpuku>=80 && S.kawaii>=80 && S.suimin>=80){
+    flagPerfect = true;
+    setTimeout(()=>{
+      announce("🌟 ぽっち、今夜は絶好調！全ステータス80超え！");
+      addProgress("ぽっちが絶好調の夜。きっと筆も進む🌟", true);
+      burst(["🌟","✨","💗"],10);
+      shootStar();
+    }, 800);
+  }
+  if(!flagKizuna5 && kizuna>=5){
+    flagKizuna5 = true;
+    setTimeout(()=>announce("🐾 なかよし度アップ！ぽっちがしっぽを振っている"), 600);
+  }
+  if(!flagKizuna12 && kizuna>=12){
+    flagKizuna12 = true;
+    setTimeout(()=>{
+      announce("💙 ぽっちはあなたを家族だと思っている");
+      addProgress("『AIぽっち観察日記』のネタがひとつ増えた🐾", true);
+    }, 600);
+  }
+}
+
+/* ================= 時間経過 ================= */
+setInterval(()=>{
+  if(busy) return;
+  S.manpuku = clamp(S.manpuku - 1.3);
+  S.genki   = clamp(S.genki   - 0.8);
+  S.kawaii  = clamp(S.kawaii  - 0.5);
+  S.suimin  = clamp(S.suimin  - 0.7);
+  render();
+}, 3000);
+
+/* おなかがすいた等のひとりごと */
+setInterval(()=>{
+  if(busy || bubble.classList.contains("show")) return;
+  if(S.manpuku < 25){ say("くぅ〜ん…おなかすいたわん…🍖"); return; }
+  if(S.genki < 20){ say("はふ…おひるね、したい…🌙"); return; }
+  if(S.suimin < 25){ say("目がしぱしぱ…一緒に寝よ？💤"); return; }
+  if(Math.random() < .4){
+    say(pick([
+      "今夜は星がよく見えるね⭐",
+      "わん！なでてもいいんだよ？",
+      "耳の回路、光ってるでしょ？自慢なんだ✨",
+      "つぎの原稿、たのしみだね✎",
+      "流れ星、みつけたら教えてね"
+    ]));
+  }
+}, 9000);
+
+/* ================= はじまり ================= */
+render();
+setTimeout(()=>say("わん！ぼく、AIぽっち！今夜もよろしくね🐾"), 600);
+</script>
+</body>
+</html>
