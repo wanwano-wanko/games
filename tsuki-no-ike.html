@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>月の池</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    --night:#04101f;
+    --ink:#eef3ff;
+    --mist:#a9bdd6;
+    --moon:#fff1cc;
+    --petal:#f49ab8;
+    --card:rgba(6,22,42,.72);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --night:#04101f; --ink:#eef3ff; --mist:#a9bdd6; --card:rgba(6,22,42,.72); }
+  }
+  :root[data-theme="dark"]{ --night:#04101f; --ink:#eef3ff; --mist:#a9bdd6; --card:rgba(6,22,42,.72); }
+  html{ scroll-padding-top:env(safe-area-inset-top,0px); }
+  html,body{ height:100%; margin:0; overflow:hidden; background:var(--night); }
+  body{
+    font-family:'Shippori Mincho','Hiragino Mincho ProN','Yu Mincho','YuMincho',serif;
+    color:var(--ink);
+    -webkit-user-select:none; user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  canvas{ position:fixed; top:0; left:0; display:block; touch-action:none; cursor:crosshair; }
+  #hud{
+    position:fixed; top:0; left:0; right:0;
+    padding:calc(env(safe-area-inset-top,0px) + 14px) 20px 0;
+    display:flex; justify-content:space-between; align-items:baseline;
+    pointer-events:none; opacity:0; transition:opacity 1.2s ease;
+  }
+  #hud.on{ opacity:1; }
+  #hud .name{ font-size:15px; letter-spacing:.3em; color:var(--mist); }
+  #score{ font-size:22px; font-weight:700; letter-spacing:.05em; color:var(--moon); text-shadow:0 0 12px rgba(255,230,170,.45); }
+  #score small{ font-size:12px; font-weight:500; color:var(--mist); margin-left:4px; letter-spacing:.1em; }
+  #intro{
+    position:fixed; inset:0; display:grid; place-items:center;
+    padding:24px; transition:opacity .9s ease;
+  }
+  #intro.hide{ opacity:0; pointer-events:none; }
+  .card{
+    max-width:22em; text-align:center;
+    padding:34px 28px 30px;
+    background:var(--card);
+    border:1px solid rgba(255,241,204,.18);
+    border-radius:28px 6px 28px 6px;
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  }
+  .card h1{
+    margin:0 0 18px; font-size:40px; font-weight:700; letter-spacing:.35em; padding-left:.35em;
+    color:var(--moon); text-shadow:0 0 24px rgba(255,230,170,.35);
+  }
+  .card p{ margin:0 0 10px; font-size:16px; line-height:1.9; }
+  .card p.sub{ font-size:13px; color:var(--mist); margin-bottom:24px; }
+  #start{
+    font:inherit; font-size:17px; font-weight:700; letter-spacing:.15em;
+    color:#1a1530; background:var(--moon);
+    border:0; border-radius:999px; padding:12px 30px; cursor:pointer;
+    box-shadow:0 0 28px rgba(255,230,170,.35);
+  }
+  #start:focus-visible{ outline:2px solid var(--petal); outline-offset:4px; }
+  @media (max-width:380px){ .card h1{ font-size:34px; } }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="夜の池の水面"></canvas>
+
+<div id="hud"><span class="name">月の池</span><span id="score">0<small>枚</small></span></div>
+
+<div id="intro">
+  <div class="card">
+    <h1>月の池</h1>
+    <p>水面をタップすると波紋が立ちます。<br>浮いた花びらを押して、月の輪へ。</p>
+    <p class="sub">なぞると水をかき混ぜられます。<br>金色の花びらは3枚ぶん。</p>
+    <button id="start">水にふれる</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d');
+  const sim = document.createElement('canvas'), sctx = sim.getContext('2d');
+  const bgc = document.createElement('canvas'), bctx = bgc.getContext('2d', { willReadFrequently: true });
+  const stat = document.createElement('canvas'), stctx = stat.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const DAMP = 0.986, REF = 0.07, LIGHT = 0.42;
+  let cssW, cssH, dpr, S, W, H, cur, prev, outImg;
+  const ring = { x: 0, y: 0, r: 0, flash: 0 };
+  let koi = [], petals = [], sparks = [], floaters = [];
+  let score = 0, started = false, time = 0;
+  let spawnTimer = 30, rainTimer = 40;
+
+  function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cssW = window.innerWidth; cssH = window.innerHeight;
+    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+    cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+    S = Math.max(2, Math.ceil(Math.sqrt(cssW * cssH / 150000)));
+    W = Math.ceil(cssW / S) + 3; H = Math.ceil(cssH / S) + 3;
+    cur = new Float32Array(W * H); prev = new Float32Array(W * H);
+    sim.width = bgc.width = stat.width = W;
+    sim.height = bgc.height = stat.height = H;
+    outImg = sctx.createImageData(W, H);
+    for (let k = 3; k < outImg.data.length; k += 4) outImg.data[k] = 255;
+    ring.x = cssW * 0.5; ring.y = cssH * 0.38;
+    ring.r = Math.max(48, Math.min(cssW, cssH) * 0.13);
+    drawStatic();
+    if (!koi.length) initKoi();
+    for (const p of petals){ p.x = Math.min(Math.max(p.x, 14), cssW - 14); p.y = Math.min(Math.max(p.y, 14), cssH - 14); }
+  }
+
+  // ---- 池の底（波で揺らされる側の絵） ----
+  function drawStatic(){
+    const c = stctx, s = 1 / S;
+    const g = c.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#0d2e50'); g.addColorStop(0.5, '#082340'); g.addColorStop(1, '#03101f');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    const r = rng(11);
+    const n = Math.floor(cssW * cssH / 2600);
+    for (let i = 0; i < n; i++){
+      const x = r() * W, y = r() * H, rad = (3 + r() * 10) * s;
+      const hue = 200 + r() * 40, sat = 15 + r() * 20, lig = 12 + r() * 14;
+      c.fillStyle = `hsla(${hue},${sat}%,${lig}%,${0.55 + r() * 0.35})`;
+      c.beginPath(); c.ellipse(x, y, rad, rad * (0.6 + r() * 0.4), r() * Math.PI, 0, Math.PI * 2); c.fill();
+    }
+    // 水草
+    c.lineCap = 'round';
+    for (let i = 0; i < 9; i++){
+      const edge = r() < 0.5 ? r() * W * 0.18 : W - r() * W * 0.18;
+      const y0 = H * (0.55 + r() * 0.45);
+      c.strokeStyle = `rgba(${46 + r()*20},${110 + r()*30},${92 + r()*20},0.38)`;
+      c.lineWidth = (2 + r() * 3) * s * 1.6;
+      c.beginPath(); c.moveTo(edge, y0);
+      c.bezierCurveTo(edge + (r() - 0.5) * 40 * s, y0 - 60 * s, edge + (r() - 0.5) * 60 * s, y0 - 120 * s, edge + (r() - 0.5) * 50 * s, y0 - (150 + r() * 90) * s);
+      c.stroke();
+    }
+    // 星の映り込み
+    for (let i = 0; i < n / 4; i++){
+      c.fillStyle = `rgba(220,232,255,${0.08 + r() * 0.3})`;
+      c.fillRect(r() * W, r() * H * 0.8, 1, 1);
+    }
+    // 月の映り込み
+    const mx = ring.x * s + 1, my = ring.y * s + 1, mr = ring.r * s;
+    const mg = c.createRadialGradient(mx, my, 0, mx, my, mr * 2.4);
+    mg.addColorStop(0, 'rgba(255,246,215,0.95)');
+    mg.addColorStop(0.3, 'rgba(255,238,195,0.75)');
+    mg.addColorStop(0.42, 'rgba(200,215,255,0.22)');
+    mg.addColorStop(1, 'rgba(120,150,220,0)');
+    c.fillStyle = mg; c.beginPath(); c.arc(mx, my, mr * 2.4, 0, Math.PI * 2); c.fill();
+  }
+
+  // ---- 鯉 ----
+  const KOI_COL = [
+    { body: '#f07a2a', spot: '#fff4e6' },
+    { body: '#f3ede4', spot: '#e0442a' },
+    { body: '#e8b04a', spot: '#fff8e0' },
+    { body: '#f3ede4', spot: '#2a2a3a' }
+  ];
+  function newTarget(k){ const m = 50; k.tx = m + Math.random() * (cssW - 2 * m); k.ty = m + Math.random() * (cssH - 2 * m); }
+  function initKoi(){
+    koi = [];
+    const n = cssW * cssH > 500000 ? 4 : 3;
+    for (let i = 0; i < n; i++){
+      const k = { x: Math.random() * cssW, y: Math.random() * cssH, a: Math.random() * Math.PI * 2,
+        sp: 0.45 + Math.random() * 0.3, t: Math.random() * 100, len: 38 + Math.random() * 18,
+        col: KOI_COL[i % KOI_COL.length], boost: 0 };
+      newTarget(k); koi.push(k);
+    }
+  }
+  function updateKoi(dt){
+    for (const k of koi){
+      k.t += dt * (1 + k.boost * 2);
+      if (Math.hypot(k.tx - k.x, k.ty - k.y) < 40 || Math.random() < 0.002 * dt) newTarget(k);
+      let diff = Math.atan2(k.ty - k.y, k.tx - k.x) - k.a;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      const turn = 0.025 * (1 + k.boost);
+      k.a += Math.max(-turn, Math.min(turn, diff)) * dt;
+      const v = k.sp * (1 + k.boost * 3);
+      k.x += Math.cos(k.a) * v * dt; k.y += Math.sin(k.a) * v * dt;
+      k.boost *= Math.pow(0.97, dt);
+    }
+  }
+  function scareKoi(px, py){
+    for (const k of koi){
+      const d = Math.hypot(k.x - px, k.y - py);
+      if (d < 140){
+        k.boost = 1;
+        const ang = Math.atan2(k.y - py, k.x - px);
+        k.tx = Math.min(Math.max(k.x + Math.cos(ang) * 220, 40), cssW - 40);
+        k.ty = Math.min(Math.max(k.y + Math.sin(ang) * 220, 40), cssH - 40);
+      }
+    }
+  }
+  function drawKoi(c, k){
+    const s = 1 / S, L = k.len, wig = Math.sin(k.t * 0.14) * 0.35;
+    c.save(); c.translate(k.x * s + 1, k.y * s + 1); c.rotate(k.a); c.scale(s, s);
+    c.globalAlpha = 0.8; c.fillStyle = k.col.body;
+    c.save(); c.translate(-L * 0.42, 0); c.rotate(wig);
+    c.beginPath(); c.moveTo(0, 0);
+    c.quadraticCurveTo(-L * 0.22, -L * 0.22, -L * 0.42, -L * 0.2);
+    c.quadraticCurveTo(-L * 0.3, 0, -L * 0.42, L * 0.2);
+    c.quadraticCurveTo(-L * 0.22, L * 0.22, 0, 0); c.fill();
+    c.restore();
+    c.globalAlpha = 0.55;
+    c.beginPath(); c.ellipse(L * 0.18, -L * 0.17, L * 0.12, L * 0.05, -0.7 + wig * 0.3, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(L * 0.18, L * 0.17, L * 0.12, L * 0.05, 0.7 - wig * 0.3, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 0.95;
+    c.beginPath(); c.ellipse(0, 0, L * 0.5, L * 0.16, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = k.col.spot;
+    c.beginPath(); c.ellipse(L * 0.16, -L * 0.02, L * 0.14, L * 0.085, 0.3, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(-L * 0.17, L * 0.03, L * 0.1, L * 0.065, -0.2, 0, Math.PI * 2); c.fill();
+    c.restore(); c.globalAlpha = 1;
+  }
+
+  // ---- 水（波の計算） ----
+  function drop(px, py, r, amp){
+    const cx = px / S + 1, cy = py / S + 1, rr = Math.max(1.2, r / S);
+    const x0 = Math.max(1, Math.floor(cx - rr)), x1 = Math.min(W - 2, Math.ceil(cx + rr));
+    const y0 = Math.max(1, Math.floor(cy - rr)), y1 = Math.min(H - 2, Math.ceil(cy + rr));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++){
+      const d = Math.hypot(x - cx, y - cy);
+      if (d < rr) cur[y * W + x] += amp * 0.5 * (1 + Math.cos(Math.PI * d / rr));
+    }
+  }
+  function step(){
+    const a = cur, b = prev;
+    for (let y = 1; y < H - 1; y++){
+      let i = y * W + 1;
+      for (let x = 1; x < W - 1; x++, i++){
+        b[i] = ((a[i - 1] + a[i + 1] + a[i - W] + a[i + W]) * 0.5 - b[i]) * DAMP;
+      }
+    }
+    prev = a; cur = b;
+  }
+  function renderWater(){
+    bctx.drawImage(stat, 0, 0);
+    for (const k of koi) drawKoi(bctx, k);
+    const bg = bctx.getImageData(0, 0, W, H).data;
+    const o = outImg.data, h = cur;
+    for (let y = 1; y < H - 1; y++){
+      let i = y * W + 1;
+      for (let x = 1; x < W - 1; x++, i++){
+        const dx = h[i - 1] - h[i + 1], dy = h[i - W] - h[i + W];
+        let sx = x + (dx * REF | 0), sy = y + (dy * REF | 0);
+        if (sx < 0) sx = 0; else if (sx >= W) sx = W - 1;
+        if (sy < 0) sy = 0; else if (sy >= H) sy = H - 1;
+        const j = (sy * W + sx) << 2, k = i << 2;
+        let sh = (dx + dy) * LIGHT;
+        if (sh > 10) sh += (sh - 10) * 1.3;
+        o[k] = bg[j] + sh; o[k + 1] = bg[j + 1] + sh * 1.05; o[k + 2] = bg[j + 2] + sh * 1.15;
+      }
+    }
+    sctx.putImageData(outImg, 0, 0);
+  }
+  function heightAt(px, py){
+    const x = (px / S + 1) | 0, y = (py / S + 1) | 0;
+    if (x < 2 || y < 2 || x > W - 3 || y > H - 3) return { h: 0, gx: 0, gy: 0 };
+    const i = y * W + x;
+    return { h: cur[i], gx: cur[i + 1] - cur[i - 1], gy: cur[i + W] - cur[i - W] };
+  }
+
+  // ---- 花びら ----
+  const TYPES = [
+    { c1: '#ffe0ea', c2: '#f28fb2', val: 1 },
+    { c1: '#fffaf6', c2: '#f1c3cf', val: 1 },
+    { c1: '#efe4ff', c2: '#b394ea', val: 1 },
+  ];
+  const GOLD = { c1: '#fff4c2', c2: '#eab43a', val: 3, gold: true };
+  function spawnPetal(){
+    const type = Math.random() < 0.09 ? GOLD : TYPES[(Math.random() * TYPES.length) | 0];
+    let x, y, tries = 0;
+    do {
+      x = 30 + Math.random() * (cssW - 60); y = 70 + Math.random() * (cssH - 120); tries++;
+    } while (Math.hypot(x - ring.x, y - ring.y) < ring.r * 2.2 && tries < 30);
+    petals.push({ x, y, vx: 0, vy: 0, rot: Math.random() * Math.PI * 2, vr: (Math.random() - 0.5) * 0.012,
+      size: (type.gold ? 13 : 10) + Math.random() * 5, type, z: 1, col: false, ct: 0 });
+  }
+  function collect(p){
+    p.col = true; p.ct = 0;
+    score += p.type.val;
+    scoreEl.innerHTML = score + '<small>枚</small>';
+    ring.flash = 1;
+    drop(ring.x, ring.y, 22, 70);
+    floaters.push({ x: ring.x, y: ring.y - ring.r - 8, txt: '+' + p.type.val, life: 1, gold: !!p.type.gold });
+    const n = p.type.gold ? 34 : 18;
+    for (let i = 0; i < n; i++){
+      const a = Math.random() * Math.PI * 2, v = 0.6 + Math.random() * 2.4;
+      sparks.push({ x: p.x, y: p.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, gold: !!p.type.gold });
+    }
+    if (score > 0 && score % 10 < p.type.val){
+      floaters.push({ x: ring.x, y: ring.y + ring.r + 34, txt: Math.floor(score / 10) * 10 + '枚め', life: 1.6, big: true });
+      for (let i = 0; i < 6; i++) setTimeout(() => {
+        const a = Math.random() * Math.PI * 2;
+        drop(ring.x + Math.cos(a) * ring.r * 1.6, ring.y + Math.sin(a) * ring.r * 1.6, 14, 50);
+      }, i * 120);
+    }
+  }
+  function updatePetals(dt){
+    for (let n = petals.length - 1; n >= 0; n--){
+      const p = petals[n];
+      if (p.col){
+        p.ct += dt;
+        p.x += (ring.x - p.x) * 0.08 * dt; p.y += (ring.y - p.y) * 0.08 * dt; p.rot += 0.1 * dt;
+        if (p.ct > 40) petals.splice(n, 1);
+        continue;
+      }
+      if (p.z > 0){
+        p.z -= 0.016 * dt; p.rot += 0.04 * dt;
+        if (p.z <= 0){ p.z = 0; drop(p.x, p.y, 7, 34); }
+        continue;
+      }
+      const w = heightAt(p.x, p.y);
+      p.vx -= w.gx * 0.0016 * dt; p.vy -= w.gy * 0.0016 * dt;
+      const f = Math.pow(0.972, dt);
+      p.vx *= f; p.vy *= f;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.rot += (p.vr + p.vx * 0.006) * dt;
+      const m = 12;
+      if (p.x < m){ p.x = m; p.vx = Math.abs(p.vx) * 0.5; }
+      if (p.x > cssW - m){ p.x = cssW - m; p.vx = -Math.abs(p.vx) * 0.5; }
+      if (p.y < m){ p.y = m; p.vy = Math.abs(p.vy) * 0.5; }
+      if (p.y > cssH - m){ p.y = cssH - m; p.vy = -Math.abs(p.vy) * 0.5; }
+      if (Math.hypot(p.x - ring.x, p.y - ring.y) < ring.r * 0.72) collect(p);
+    }
+  }
+  function petalPath(c, s){
+    c.beginPath(); c.moveTo(-s * 0.9, 0);
+    c.bezierCurveTo(-s * 0.5, -s * 0.75, s * 0.6, -s * 0.82, s * 0.95, -s * 0.2);
+    c.lineTo(s * 0.68, 0);
+    c.lineTo(s * 0.95, s * 0.2);
+    c.bezierCurveTo(s * 0.6, s * 0.82, -s * 0.5, s * 0.75, -s * 0.9, 0);
+    c.closePath();
+  }
+  function drawPetal(p){
+    const t = p.type, s = p.size;
+    let x = p.x, y = p.y, sc = 1, al = 1;
+    if (p.z > 0){
+      ctx.globalAlpha = 0.28 * (1 - p.z); ctx.fillStyle = '#01060d';
+      ctx.beginPath(); ctx.ellipse(x + 3, y + 4, s * 0.8, s * 0.5, p.rot, 0, Math.PI * 2); ctx.fill();
+      y -= p.z * 90; x -= p.z * 24; sc = 1 + p.z * 0.45; al = 1 - p.z * 0.4;
+    } else if (!p.col){
+      const w = heightAt(p.x, p.y);
+      sc = 1 + w.h * 0.0012;
+      ctx.globalAlpha = 0.32; ctx.fillStyle = '#01060d';
+      ctx.save(); ctx.translate(x + 2.5, y + 3.5); ctx.rotate(p.rot); petalPath(ctx, s); ctx.fill(); ctx.restore();
+    }
+    if (p.col){ const k = Math.min(1, p.ct / 40); sc *= 1 - k * 0.9; al *= 1 - k; }
+    ctx.save();
+    ctx.globalAlpha = al;
+    ctx.translate(x, y); ctx.rotate(p.rot); ctx.scale(sc, sc);
+    if (t.gold){ ctx.shadowColor = 'rgba(255,215,110,0.9)'; ctx.shadowBlur = 14; }
+    const g = ctx.createLinearGradient(-s, 0, s, 0);
+    g.addColorStop(0, t.c2); g.addColorStop(0.55, t.c1); g.addColorStop(1, t.c1);
+    ctx.fillStyle = g; petalPath(ctx, s); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(-s * 0.75, 0); ctx.quadraticCurveTo(0, -s * 0.05, s * 0.45, 0); ctx.stroke();
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+
+  // ---- 入力 ----
+  let down = false, lastX = 0, lastY = 0, moved = 0;
+  function push(px, py, R, F){
+    for (const p of petals){
+      if (p.z > 0 || p.col) continue;
+      const dx = p.x - px, dy = p.y - py, d = Math.hypot(dx, dy);
+      if (d > 1 && d < R){ const f = (1 - d / R) * F; p.vx += dx / d * f; p.vy += dy / d * f; }
+    }
+  }
+  cv.addEventListener('pointerdown', e => {
+    if (!started) return;
+    down = true; lastX = e.clientX; lastY = e.clientY; moved = 0;
+    drop(e.clientX, e.clientY, 15, 95);
+    push(e.clientX, e.clientY, 150, 4.6);
+    scareKoi(e.clientX, e.clientY);
+    for (let i = 0; i < 6; i++){
+      const a = Math.random() * Math.PI * 2, v = 0.4 + Math.random();
+      sparks.push({ x: e.clientX, y: e.clientY, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.6 });
+    }
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!down || !started) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY, d = Math.hypot(dx, dy);
+    moved += d;
+    if (moved > 10){
+      moved = 0;
+      drop(e.clientX, e.clientY, 10, 26);
+      push(e.clientX, e.clientY, 70, 0.9);
+    }
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  const up = () => { down = false; };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+  cv.addEventListener('pointerleave', up);
+
+  document.getElementById('start').addEventListener('click', () => {
+    started = true;
+    document.getElementById('intro').classList.add('hide');
+    document.getElementById('hud').classList.add('on');
+    drop(cssW / 2, cssH * 0.62, 26, 120);
+    for (let i = 0; i < 3; i++) setTimeout(spawnPetal, 300 + i * 500);
+  });
+
+  // ---- 描画ループ ----
+  function drawRing(){
+    const pulse = 0.5 + 0.5 * Math.sin(time * 0.03);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = `rgba(190,210,255,${0.08 + ring.flash * 0.15})`; ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,240,200,${0.28 + pulse * 0.16 + ring.flash * 0.5})`; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(ring.x, ring.y, ring.r * (1 + ring.flash * 0.06), 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  function drawFx(dt){
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (let i = sparks.length - 1; i >= 0; i--){
+      const s = sparks[i];
+      s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= Math.pow(0.95, dt); s.vy *= Math.pow(0.95, dt);
+      s.life -= 0.02 * dt;
+      if (s.life <= 0){ sparks.splice(i, 1); continue; }
+      ctx.fillStyle = s.gold ? `rgba(255,215,120,${s.life})` : `rgba(255,236,240,${s.life * 0.9})`;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 1.2 + s.life * 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    for (let i = floaters.length - 1; i >= 0; i--){
+      const f = floaters[i];
+      f.life -= 0.012 * dt; f.y -= 0.35 * dt;
+      if (f.life <= 0){ floaters.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.min(1, f.life);
+      ctx.fillStyle = f.gold ? '#ffd76e' : '#fff1cc';
+      ctx.font = `700 ${f.big ? 26 : 18}px 'Shippori Mincho','Hiragino Mincho ProN','Yu Mincho',serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(f.txt, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+  function vignette(){
+    const g = ctx.createRadialGradient(cssW / 2, cssH / 2, Math.min(cssW, cssH) * 0.35, cssW / 2, cssH / 2, Math.max(cssW, cssH) * 0.75);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(1,5,12,0.55)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, cssW, cssH);
+  }
+
+  let last = performance.now(), acc = 0;
+  function frame(now){
+    let dt = Math.min(3, (now - last) / 16.667); last = now;
+    time += dt; acc += dt;
+    let steps = 0;
+    while (acc >= 1 && steps < 3){ step(); acc -= 1; steps++; }
+    if (steps === 3) acc = 0;
+
+    rainTimer -= dt;
+    if (rainTimer <= 0){
+      rainTimer = (reduceMotion ? 160 : 34) + Math.random() * 50;
+      drop(Math.random() * cssW, Math.random() * cssH, 5, 22 + Math.random() * 14);
+    }
+    if (started){
+      spawnTimer -= dt;
+      const floating = petals.filter(p => !p.col).length;
+      if (spawnTimer <= 0 && floating < 8){ spawnPetal(); spawnTimer = 140 + Math.random() * 90; }
+    }
+    ring.flash *= Math.pow(0.95, dt);
+    updateKoi(dt);
+    updatePetals(dt);
+
+    renderWater();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(sim, -S, -S, W * S, H * S);
+    drawRing();
+    for (const p of petals) drawPetal(p);
+    drawFx(dt);
+    vignette();
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

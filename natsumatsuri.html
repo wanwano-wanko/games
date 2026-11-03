@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>なつまつりごっこ</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --night1:#1b2a5e; --night2:#0d1538;
+    --paper:#fff6e8; --paper2:#ffeeda;
+    --lantern:#ffb74a; --lantern-glow:#ffd98a;
+    --aka:#e85345; --pink:#ff7bac; --midori:#57b98b; --murasaki:#7a5ad4;
+    --ink:#3a2c26;
+    --coin-500:#cdbb6e; --coin-100:#c9cdd4; --coin-50:#d4d8de; --coin-10:#b87549;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
+  html,body{height:100%;}
+  body{
+    font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","BIZ UDGothic",sans-serif;
+    background:linear-gradient(180deg,var(--night1),var(--night2) 70%);
+    color:var(--ink);
+    display:flex;justify-content:center;
+    overflow:hidden;
+  }
+  #app{
+    width:100%;max-width:560px;height:100vh;height:100dvh;
+    display:flex;flex-direction:column;position:relative;overflow:hidden;
+  }
+  /* ===== タブレット ===== */
+  @media (min-width:700px){
+    #app{max-width:1000px;}
+    .map-grid{grid-template-columns:repeat(4,1fr) !important;}
+    h2{font-size:30px !important;}
+    .btn-big{font-size:24px;padding:16px 44px;}
+    .wallet-bar svg{width:52px;height:52px;}
+    .wcount{font-size:16px !important;}
+    .pool{max-width:560px !important;}
+  }
+  /* ちょうちん */
+  .lanterns{display:flex;justify-content:space-around;padding:6px 4px 0;flex-shrink:0;position:relative;z-index:3;}
+  .lantern{width:34px;height:44px;position:relative;animation:sway 3s ease-in-out infinite;transform-origin:top center;}
+  .lantern:nth-child(2n){animation-delay:1.2s;}
+  .lantern:nth-child(3n){animation-delay:.6s;}
+  @keyframes sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+  .lantern svg{filter:drop-shadow(0 0 10px rgba(255,183,74,.55));}
+
+  /* ステータスバー(とけい+おなか) */
+  #statusbar{
+    display:none;align-items:center;gap:10px;
+    background:rgba(255,246,232,.95);border-radius:16px;
+    margin:4px 8px 0;padding:5px 12px;flex-shrink:0;z-index:4;
+    box-shadow:0 3px 0 rgba(0,0,0,.25);
+  }
+  #statusbar.show{display:flex;}
+  .clock-wrap{display:flex;align-items:center;gap:7px;}
+  .clock-digit{font-weight:900;font-size:17px;line-height:1.1;}
+  .clock-digit small{display:block;font-size:10px;color:#8a5a2a;font-weight:700;}
+  .meter{display:flex;align-items:center;gap:6px;margin-left:auto;}
+  .mface{font-size:24px;}
+  .mbar{width:min(120px,22vw);height:14px;background:#e0d4c0;border-radius:8px;overflow:hidden;}
+  .mbar>div{height:100%;border-radius:8px;transition:width .5s,background .5s;}
+  .mlabel{font-size:11px;font-weight:900;color:#8a5a2a;}
+
+  .screen{flex:1;display:none;flex-direction:column;overflow:hidden;position:relative;min-height:0;}
+  .screen.active{display:flex;}
+  h1,h2{color:var(--paper);text-align:center;text-shadow:0 2px 0 rgba(0,0,0,.3);}
+  h2{font-size:clamp(19px,5vw,26px);font-weight:900;padding:6px 0 2px;flex-shrink:0;}
+  .sub{color:var(--lantern-glow);text-align:center;font-size:14px;font-weight:700;flex-shrink:0;}
+
+  .btn{
+    font-family:inherit;font-weight:900;border:none;cursor:pointer;
+    border-radius:999px;color:#fff;
+    box-shadow:0 4px 0 rgba(0,0,0,.25);
+    transition:transform .08s, box-shadow .08s;
+  }
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.25);}
+  .btn:disabled{opacity:.4;pointer-events:none;}
+  .btn-big{font-size:20px;padding:14px 34px;background:var(--aka);}
+  .btn-green{background:var(--midori);}
+  .btn-pink{background:var(--pink);}
+  .btn-ghost{background:rgba(255,255,255,.18);color:var(--paper);font-size:14px;padding:8px 18px;box-shadow:none;border:2px solid rgba(255,255,255,.35);}
+  .urgent{animation:urgentpulse 1s infinite;}
+  @keyframes urgentpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08);box-shadow:0 0 18px var(--aka);}}
+
+  /* ====== タイトル ====== */
+  #scr-title{justify-content:center;align-items:center;gap:20px;}
+  #scr-title h1{font-size:clamp(34px,9vw,54px);font-weight:900;line-height:1.3;}
+  #scr-title .fude{color:var(--lantern);font-size:.55em;display:block;letter-spacing:.4em;}
+  .title-fireworks{position:absolute;inset:0;pointer-events:none;}
+
+  /* ====== きせかえ ====== */
+  #dress-stage{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;}
+  #dress-stage svg{height:100%;max-height:44vh;}
+  .picker-area{background:var(--paper);border-radius:24px 24px 0 0;padding:10px 14px 12px;flex-shrink:0;}
+  .picker-tabs{display:flex;gap:6px;margin-bottom:8px;}
+  .ptab{flex:1;border:none;border-radius:999px;padding:9px 0;font-family:inherit;font-weight:900;font-size:clamp(11px,3vw,15px);background:#e9ddc9;color:#8a7a68;cursor:pointer;}
+  .ptab.on{background:var(--aka);color:#fff;}
+  .swatches{display:flex;gap:10px;justify-content:center;min-height:66px;align-items:center;flex-wrap:wrap;}
+  .sw{width:58px;height:58px;border-radius:18px;border:4px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 0 rgba(0,0,0,.15);}
+  .sw.on{border-color:var(--ink);transform:scale(1.08);}
+  .dress-go{display:flex;justify-content:center;padding:10px 0 2px;}
+
+  /* ====== おこづかい&やくそく ====== */
+  #scr-money{align-items:center;justify-content:flex-start;gap:10px;padding:8px 16px;overflow-y:auto;}
+  .money-bubble{background:var(--paper);border-radius:22px;padding:12px 18px;font-weight:900;font-size:15px;text-align:center;box-shadow:0 4px 0 rgba(0,0,0,.25);max-width:420px;}
+  .mom-row{display:flex;align-items:center;gap:10px;}
+  #gift-coins{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:420px;}
+  .gift-coin{cursor:pointer;transition:transform .15s;animation:pop .4s;}
+  .gift-coin:active{transform:scale(1.2);}
+  @keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+
+  /* ====== マップ ====== */
+  #scr-map{padding:0 8px;}
+  .map-grid{
+    flex:1;display:grid;grid-template-columns:repeat(2,1fr);gap:10px;
+    padding:8px 4px;min-height:0;overflow-y:auto;align-content:start;
+  }
+  .stall{background:rgba(255,255,255,.06);border:none;cursor:pointer;padding:6px 4px 8px;border-radius:16px;transition:transform .1s;}
+  .stall:active{transform:scale(.95);}
+  .stall.soldout{opacity:.45;}
+  .stall svg{width:100%;height:auto;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35));}
+  .stall .sname{color:var(--paper);font-weight:900;font-size:clamp(12px,3vw,15px);margin-top:2px;}
+  .stall .sprice{color:var(--lantern);font-weight:900;font-size:clamp(12px,3vw,15px);}
+  .badge{display:inline-block;font-size:10px;font-weight:900;border-radius:8px;padding:1px 7px;color:#fff;margin-left:3px;vertical-align:2px;}
+  .b-game{background:var(--pink);} .b-food{background:var(--midori);} .b-goods{background:var(--murasaki);}
+  .map-bottom{display:flex;justify-content:center;gap:10px;padding:6px 0 10px;flex-shrink:0;}
+
+  /* ====== おさいふバー ====== */
+  .wallet-bar{
+    background:var(--paper);border-radius:20px;padding:8px 10px;margin:0 6px;
+    display:flex;align-items:center;gap:8px;flex-shrink:0;
+    box-shadow:0 3px 0 rgba(0,0,0,.25);
+  }
+  .wallet-bar .wtitle{font-weight:900;font-size:13px;color:#8a5a2a;white-space:nowrap;}
+  .wallet-coins{display:flex;gap:6px;flex:1;justify-content:space-around;}
+  .wgroup{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;transition:transform .1s;}
+  .wgroup:active{transform:scale(1.15);}
+  .wgroup.empty{opacity:.25;pointer-events:none;}
+  .wcount{font-weight:900;font-size:13px;}
+
+  /* ====== やたい(かいもの) ====== */
+  #scr-shop{padding:0 0 8px;}
+  .shop-head{display:flex;align-items:center;gap:8px;padding:8px 12px 0;flex-shrink:0;}
+  .shop-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:0;}
+  .shop-item svg{max-height:18vh;}
+  .price-tag{background:var(--paper);border-radius:16px;padding:6px 22px;font-size:24px;font-weight:900;box-shadow:0 3px 0 rgba(0,0,0,.25);}
+  .price-tag small{font-size:14px;color:#8a5a2a;display:block;text-align:center;}
+  .tray{
+    background:rgba(255,255,255,.12);border:3px dashed rgba(255,246,232,.5);border-radius:20px;
+    margin:8px 14px;min-height:74px;padding:8px;flex-shrink:0;
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;position:relative;
+  }
+  .tray-label{position:absolute;top:-11px;left:16px;background:var(--night1);color:var(--lantern-glow);font-size:12px;font-weight:900;padding:0 8px;border-radius:8px;}
+  .tray-coin{cursor:pointer;animation:pop .25s;}
+  .tray-total{color:var(--paper);font-weight:900;font-size:18px;text-align:center;flex-shrink:0;}
+  .tray-total b{color:var(--lantern);font-size:24px;}
+  .shop-btns{display:flex;justify-content:center;gap:10px;padding:8px 0 4px;flex-shrink:0;}
+  .hint-pop{color:var(--lantern-glow);font-size:14px;font-weight:900;text-align:center;min-height:20px;flex-shrink:0;}
+
+  /* ====== おつり ====== */
+  #scr-change{align-items:center;justify-content:center;gap:14px;padding:16px;}
+  #change-coins{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:380px;}
+
+  /* ====== ミニゲーム ====== */
+  #scr-game{align-items:center;padding:8px;}
+  #game-area{flex:1;width:100%;position:relative;min-height:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;}
+  .pool{width:min(92%,440px);aspect-ratio:1.5;background:radial-gradient(circle at 50% 40%,#7fd4ff,#3aa4dd);border-radius:50%/40%;position:relative;overflow:hidden;border:8px solid #e0e4ea;box-shadow:inset 0 6px 20px rgba(0,0,0,.2);}
+  .floaty{position:absolute;cursor:pointer;transition:transform .1s;}
+  .floaty:active{transform:scale(1.2);}
+  .bob{animation:bob 2.2s ease-in-out infinite;}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-10px) rotate(6deg)}}
+  .swim{animation:swim 5s linear infinite;}
+  @keyframes swim{0%{left:105%}100%{left:-15%}}
+  .caught-msg{color:var(--paper);font-weight:900;font-size:clamp(16px,4.5vw,22px);text-align:center;min-height:30px;flex-shrink:0;padding:0 8px;}
+  .wiggle{animation:wiggle 1.6s ease-in-out infinite;transform-origin:bottom center;}
+  @keyframes wiggle{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+  .shake{animation:shakex .4s;}
+  @keyframes shakex{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+  .fall{transition:transform .6s ease-in, opacity .6s;transform:rotate(80deg) translateY(46px) !important;opacity:0;}
+  .ghostfloat{animation:ghostf 3s ease-in-out infinite;}
+  @keyframes ghostf{0%,100%{transform:translateY(0)}50%{transform:translateY(-16px)}}
+  #scr-game.spooky{background:radial-gradient(circle at 50% 30%, #2a1a4a, transparent 70%);}
+
+  /* ====== おわり ====== */
+  #scr-end{align-items:center;justify-content:flex-start;gap:10px;padding:12px;position:relative;overflow-y:auto;}
+  #fireworks-canvas{position:fixed;inset:0;pointer-events:none;z-index:1;}
+  .item-shelf{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;background:var(--paper);border-radius:20px;padding:12px 16px;max-width:440px;box-shadow:0 4px 0 rgba(0,0,0,.25);position:relative;z-index:2;}
+  .item-shelf .none{font-weight:700;color:#8a7a68;}
+  .end-money{color:var(--paper);font-weight:900;font-size:16px;text-align:center;position:relative;z-index:2;}
+  .end-money b{color:var(--lantern);font-size:24px;}
+  .verdict{display:flex;align-items:center;gap:10px;background:var(--paper);border-radius:20px;padding:10px 14px;max-width:440px;box-shadow:0 4px 0 rgba(0,0,0,.25);position:relative;z-index:2;}
+  .verdict .vtext{font-weight:900;font-size:15px;line-height:1.5;}
+
+  .toast{
+    position:absolute;left:50%;top:38%;transform:translate(-50%,-50%) scale(0);
+    background:var(--paper);border-radius:20px;padding:14px 26px;font-size:clamp(17px,4.5vw,22px);font-weight:900;
+    box-shadow:0 6px 0 rgba(0,0,0,.3);z-index:50;pointer-events:none;text-align:center;max-width:88%;
+  }
+  .toast.show{animation:toastin 1.6s forwards;}
+  @keyframes toastin{0%{transform:translate(-50%,-50%) scale(0)}15%{transform:translate(-50%,-50%) scale(1.05)}26%{transform:translate(-50%,-50%) scale(1)}82%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-50%) scale(.8);opacity:0}}
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001s !important;animation-iteration-count:1 !important;transition-duration:.001s !important;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="lanterns" id="lanterns"></div>
+  <div id="statusbar">
+    <div class="clock-wrap"><span id="clock-svg"></span>
+      <div class="clock-digit"><span id="clock-text">5じ</span><small>やくそくは 7じ</small></div>
+    </div>
+    <div class="meter"><span class="mface" id="mface">😊</span>
+      <div><div class="mbar"><div id="mbarfill" style="width:70%;background:#57b98b"></div></div><div class="mlabel">おなか</div></div>
+    </div>
+  </div>
+
+  <!-- タイトル -->
+  <div class="screen active" id="scr-title">
+    <canvas class="title-fireworks" id="title-fw"></canvas>
+    <h1><span class="fude">こどもの</span>なつまつり<br>ごっこ</h1>
+    <div id="title-avatar" style="height:28vh;"></div>
+    <button class="btn btn-big" onclick="startDress()">あそぶ！</button>
+  </div>
+
+  <!-- きせかえ -->
+  <div class="screen" id="scr-dress">
+    <h2>ゆかたに きがえよう</h2>
+    <div id="dress-stage"></div>
+    <div class="picker-area">
+      <div class="picker-tabs" id="ptabs"></div>
+      <div class="swatches" id="swatches"></div>
+      <div class="dress-go"><button class="btn btn-big btn-pink" onclick="startMoney()">できた！つぎへ →</button></div>
+    </div>
+  </div>
+
+  <!-- おこづかい&やくそく -->
+  <div class="screen" id="scr-money">
+    <h2>おでかけのまえに…</h2>
+    <div class="mom-row"><span id="mom-face1"></span>
+      <div class="money-bubble">「よるの <b style="color:var(--aka)">7じ</b> までには かえってきてね。<br>とけいの <span style="color:var(--aka)">あかいしるし</span> のところだよ。<br><b>やくそくだよ！</b>」</div>
+    </div>
+    <div class="money-bubble">おこづかいは <b style="color:var(--aka)">1500えん</b>！<br>コインを ぜんぶタッチして おさいふへ</div>
+    <div id="gift-coins"></div>
+    <div class="wallet-bar" style="width:100%;max-width:440px"><span class="wtitle">おさいふ</span><div class="wallet-coins" id="wallet-money"></div></div>
+    <div style="padding:6px 0 14px;">
+      <button class="btn btn-big btn-green" id="money-go" disabled onclick="startFestival()">おまつりへ しゅっぱつ！</button>
+    </div>
+  </div>
+
+  <!-- マップ -->
+  <div class="screen" id="scr-map">
+    <h2>どのおみせに いく？</h2>
+    <div class="map-grid" id="map-grid"></div>
+    <div class="wallet-bar"><span class="wtitle">おさいふ</span><div class="wallet-coins" id="wallet-map"></div></div>
+    <div class="map-bottom">
+      <button class="btn btn-ghost" id="home-btn" onclick="goHome(false)">🏠 おうちに かえる</button>
+    </div>
+  </div>
+
+  <!-- やたい -->
+  <div class="screen" id="scr-shop">
+    <div class="shop-head">
+      <button class="btn btn-ghost" onclick="cancelShop()">← もどる</button>
+      <h2 style="flex:1" id="shop-title"></h2>
+      <div style="width:70px"></div>
+    </div>
+    <div class="shop-item" id="shop-item-art"></div>
+    <div class="tray" id="tray"><span class="tray-label">ここに おかねを だしてね</span></div>
+    <div class="tray-total" id="tray-total"></div>
+    <div class="hint-pop" id="hint-pop"></div>
+    <div class="shop-btns">
+      <button class="btn btn-ghost" onclick="showHint()">ヒント</button>
+      <button class="btn btn-big btn-green" id="pay-btn" disabled onclick="doPay()">はらう！</button>
+    </div>
+    <div class="wallet-bar" style="margin-bottom:8px;"><span class="wtitle">おさいふ<br><small style="font-weight:700;color:#b08a5a">タッチしてだす</small></span><div class="wallet-coins" id="wallet-shop"></div></div>
+  </div>
+
+  <!-- おつり -->
+  <div class="screen" id="scr-change">
+    <h2 id="change-title">おつりを もらったよ</h2>
+    <div class="money-bubble" id="change-msg"></div>
+    <div id="change-coins"></div>
+    <div class="wallet-bar" style="width:calc(100% - 12px)"><span class="wtitle">おさいふ</span><div class="wallet-coins" id="wallet-change"></div></div>
+  </div>
+
+  <!-- ミニゲーム -->
+  <div class="screen" id="scr-game">
+    <h2 id="game-title"></h2>
+    <div class="caught-msg" id="game-msg"></div>
+    <div id="game-area"></div>
+    <div style="padding:8px 0 14px;flex-shrink:0;"><button class="btn btn-big" id="game-done" style="display:none" onclick="finishActivity()">やったね！マップへ</button></div>
+  </div>
+
+  <!-- おわり -->
+  <div class="screen" id="scr-end">
+    <canvas id="fireworks-canvas"></canvas>
+    <h2 id="end-title">たのしかったね！</h2>
+    <div class="verdict" id="verdict"></div>
+    <div class="sub">きょうの おみやげ・たべたもの</div>
+    <div class="item-shelf" id="item-shelf"></div>
+    <div class="end-money" id="end-money"></div>
+    <div id="end-avatar" style="height:20vh;position:relative;z-index:2;flex-shrink:0;"></div>
+    <button class="btn btn-big" style="position:relative;z-index:2;flex-shrink:0;margin-bottom:10px;" onclick="location.reload()">もういちど あそぶ</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* ================= 状態 ================= */
+const S = {
+  yukata:{gender:'girl', base:0, pattern:0, obi:0, hair:0},
+  mask:null,
+  wallet:{500:0,100:0,50:0,10:0},
+  tray:{500:0,100:0,50:0,10:0},
+  items:[],
+  bought:{},
+  currentStall:null,
+  time:0,          // 17:00からの経過(分)
+  hunger:70,       // 0-100
+  started:false,
+  warned90:false, warned110:false, ended:false,
+};
+const PROMISE=120, HARD=150;   // 19:00 / 19:30
+const GIFT=[{v:500,n:2},{v:100,n:4},{v:50,n:1},{v:10,n:5}]; // =1500えん
+const DENOMS=[500,100,50,10];
+const BASES=['#e85345','#4a7fd4','#ffb0c9','#57b98b'];
+const OBIS=['#f5c542','#8a5ad4','#ff8a5a','#3aa4dd'];
+const PATTERNS=['asagao','kingyo','hanabi','none'];
+const HAIRS_G=['twin','bob','odango'];
+const HAIRS_B=['short','spiky','mage'];
+
+/* ================= サウンド ================= */
+let AC=null;
+function ac(){ if(!AC){ try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } return AC; }
+function tone(f,d,t=0,type='sine',v=.15){
+  const c=ac(); if(!c) return;
+  const o=c.createOscillator(), g=c.createGain();
+  o.type=type; o.frequency.value=f;
+  g.gain.setValueAtTime(v,c.currentTime+t);
+  g.gain.exponentialRampToValueAtTime(.001,c.currentTime+t+d);
+  o.connect(g).connect(c.destination);
+  o.start(c.currentTime+t); o.stop(c.currentTime+t+d);
+}
+const sCoin=()=>{tone(1200,.12,0,'triangle');tone(1600,.15,.05,'triangle');};
+const sTap=()=>tone(600,.08,0,'sine',.1);
+const sPay=()=>{tone(880,.1);tone(1174,.12,.09);tone(1568,.2,.18);};
+const playJingle=()=>{[523,659,784,1046].forEach((f,i)=>tone(f,.18,i*.11,'triangle'));};
+const sYay=()=>{[784,988,1175,1568].forEach((f,i)=>tone(f,.15,i*.09,'square',.08));};
+const sBuzz=()=>tone(160,.25,0,'sawtooth',.1);
+const sSpooky=()=>{[220,180,150].forEach((f,i)=>tone(f,.3,i*.15,'triangle',.1));};
+const sCrash=()=>{tone(120,.3,0,'sawtooth',.15);tone(90,.35,.05,'sawtooth',.12);};
+
+/* ================= コインSVG ================= */
+function coinSVG(v,size=48){
+  const col={500:'var(--coin-500)',100:'var(--coin-100)',50:'var(--coin-50)',10:'var(--coin-10)'}[v];
+  const dark={500:'#a3924a',100:'#9aa0aa',50:'#a6adb8',10:'#8a5530'}[v];
+  const hole=v===50?`<circle cx="30" cy="30" r="7" fill="var(--night2)" opacity=".85"/>`:'';
+  const fs=v===50?13:(v===500?16:15);
+  const ty=v===50?50:36;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 60 60">
+    <circle cx="30" cy="32" r="27" fill="${dark}"/><circle cx="30" cy="29" r="27" fill="${col}"/>
+    <circle cx="30" cy="29" r="21" fill="none" stroke="${dark}" stroke-width="2" opacity=".6"/>
+    ${hole}<text x="30" y="${ty}" text-anchor="middle" font-size="${fs}" font-weight="900" fill="${dark}" font-family="inherit">${v}</text>
+  </svg>`;
+}
+
+/* ================= お面SVG ================= */
+function maskSVG(kind,size=44){
+  const m={
+    kitsune:`<path d="M22 4 L38 12 L34 34 Q22 42 10 34 L6 12 z" fill="#fff" stroke="#ddd"/><path d="M22 4 L30 9 L22 14 L14 9 z" fill="#e85345"/><path d="M14 20 l6 3 M30 20 l-6 3" stroke="#e85345" stroke-width="2.5" stroke-linecap="round"/><path d="M12 26 q3 -2 6 0 M26 26 q3 -2 6 0" stroke="#3a2c26" stroke-width="2" fill="none"/><path d="M19 32 h6" stroke="#e85345" stroke-width="2"/>`,
+    neko:`<path d="M8 14 L14 4 L20 12 h4 L30 4 L36 14 v14 Q36 38 22 38 Q8 38 8 28 z" fill="#fff" stroke="#ddd"/><path d="M14 8 L17 12 L13 13 z M30 8 L27 12 L31 13 z" fill="#ff7bac"/><circle cx="16" cy="22" r="2" fill="#3a2c26"/><circle cx="28" cy="22" r="2" fill="#3a2c26"/><path d="M20 28 q2 2 4 0" stroke="#3a2c26" stroke-width="1.8" fill="none"/><path d="M6 24 h7 M6 29 h7 M31 24 h7 M31 29 h7" stroke="#c9a" stroke-width="1.5"/>`,
+    usagi:`<ellipse cx="15" cy="8" rx="4.5" ry="9" fill="#fff" stroke="#ddd"/><ellipse cx="29" cy="8" rx="4.5" ry="9" fill="#fff" stroke="#ddd"/><ellipse cx="15" cy="8" rx="2" ry="6" fill="#ffb0c9"/><ellipse cx="29" cy="8" rx="2" ry="6" fill="#ffb0c9"/><circle cx="22" cy="26" r="14" fill="#fff" stroke="#ddd"/><circle cx="17" cy="24" r="2" fill="#3a2c26"/><circle cx="27" cy="24" r="2" fill="#3a2c26"/><path d="M22 28 l-2 3 h4 z" fill="#ff7bac"/>`,
+    oni:`<circle cx="22" cy="24" r="15" fill="#e85345" stroke="#c33"/><path d="M12 12 L10 3 L17 9 z M32 12 L34 3 L27 9 z" fill="#f5c542" stroke="#d4a"/><circle cx="16" cy="22" r="2.5" fill="#fff"/><circle cx="16" cy="22" r="1.2" fill="#000"/><circle cx="28" cy="22" r="2.5" fill="#fff"/><circle cx="28" cy="22" r="1.2" fill="#000"/><path d="M16 31 q6 4 12 0" stroke="#fff" stroke-width="2" fill="none"/><path d="M18 31 v3 M26 31 v3" stroke="#fff" stroke-width="2"/>`,
+  }[kind];
+  return `<svg width="${size}" height="${size}" viewBox="0 0 44 44">${m}</svg>`;
+}
+
+/* ================= アバターSVG ================= */
+function patternDefs(id,base){
+  const p=PATTERNS[S.yukata.pattern];
+  if(p==='none') return {defs:'',fill:base};
+  let inner='';
+  if(p==='asagao') inner=`<circle cx="12" cy="12" r="6" fill="#fff" opacity=".9"/><circle cx="12" cy="12" r="2.5" fill="${OBIS[S.yukata.obi]}"/>`;
+  if(p==='kingyo') inner=`<path d="M6 12 q5 -6 10 0 q-5 6 -10 0 M16 12 l4 -3 v6 z" fill="#fff" opacity=".9"/>`;
+  if(p==='hanabi') inner=`<g stroke="#ffe9a8" stroke-width="1.6" opacity=".95"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="7" y1="7" x2="17" y2="17"/><line x1="17" y1="7" x2="7" y2="17"/></g>`;
+  return {defs:`<pattern id="${id}" width="24" height="24" patternUnits="userSpaceOnUse"><rect width="24" height="24" fill="${base}"/>${inner}</pattern>`,fill:`url(#${id})`};
+}
+function avatarSVG(uid='a'){
+  const base=BASES[S.yukata.base], obi=OBIS[S.yukata.obi];
+  const {defs,fill}=patternDefs('pat-'+uid,base);
+  const girl=S.yukata.gender==='girl';
+  const H='#5a4232', SKIN='#ffe3c8';
+  const hs=(girl?HAIRS_G:HAIRS_B)[S.yukata.hair]||(girl?'twin':'short');
+  const bow=(x,y)=>`<path d="M${x} ${y} l-7 -4.5 v9 z" fill="${obi}" stroke="#00000022"/><path d="M${x} ${y} l7 -4.5 v9 z" fill="${obi}" stroke="#00000022"/><circle cx="${x}" cy="${y}" r="2.2" fill="#fff"/>`;
+  const flower=(x,y)=>{let p='';for(let i=0;i<5;i++){const a=i/5*6.283-1.57;p+=`<circle cx="${(x+Math.cos(a)*4.6).toFixed(1)}" cy="${(y+Math.sin(a)*4.6).toFixed(1)}" r="3.4" fill="${obi}"/>`;}return p+`<circle cx="${x}" cy="${y}" r="2.8" fill="#ffe27a"/>`;};
+  let back='', acc='';
+  if(hs==='twin'){back=`<circle cx="20" cy="55" r="11" fill="${H}"/><circle cx="80" cy="55" r="11" fill="${H}"/><ellipse cx="19" cy="68" rx="6" ry="11" fill="${H}"/><ellipse cx="81" cy="68" rx="6" ry="11" fill="${H}"/>`;acc=bow(22,45)+bow(78,45);}
+  if(hs==='bob'){back=`<path d="M25 46 a25 25 0 0 1 50 0 v17 q0 9 -9 9 h-32 q-9 0 -9 -9 z" fill="${H}"/>`;acc=flower(31,31);}
+  if(hs==='odango'){back=`<circle cx="31" cy="23" r="8.5" fill="${H}"/><circle cx="69" cy="23" r="8.5" fill="${H}"/><circle cx="31" cy="23" r="3" fill="${obi}"/><circle cx="69" cy="23" r="3" fill="${obi}"/>`;acc=flower(50,24);}
+  if(hs==='short'){back=`<path d="M26 46 a24 24 0 0 1 48 0 v7 a24 9 0 0 1 -48 0 z" fill="${H}"/>`;}
+  if(hs==='spiky'){back=`<path d="M27 44 L31 17 L39 29 L46 11 L53 27 L61 13 L67 27 L72 19 L73 44 z" fill="${H}"/>`;}
+  if(hs==='mage'){back=`<path d="M26 46 a24 24 0 0 1 48 0 v7 a24 9 0 0 1 -48 0 z" fill="${H}"/><circle cx="50" cy="19" r="6.5" fill="${H}"/><rect x="45" y="23" width="10" height="4" rx="2" fill="${obi}"/>`;}
+  const bangs=`<path d="M27 46 a23 23 0 0 1 46 0 q-4 5 -9.5 -1 q-6 7 -13.5 0 q-7 7 -13.5 0 q-5.5 6 -9.5 1 z" fill="${H}"/>`;
+  const obiKnot=girl
+    ?`<path d="M50 98 l-9 -6 v12 z" fill="${obi}" stroke="#00000022"/><path d="M50 98 l9 -6 v12 z" fill="${obi}" stroke="#00000022"/><circle cx="50" cy="98" r="3.4" fill="#fff"/>`
+    :`<circle cx="50" cy="98" r="4" fill="#fff" opacity=".55"/>`;
+  const wornMask=S.mask?`<g transform="translate(66 14) rotate(24) scale(.62)">${maskSVG(S.mask,44).replace(/<\/?svg[^>]*>/g,'')}</g>`:'';
+  return `<svg viewBox="0 0 100 158" xmlns="http://www.w3.org/2000/svg" style="height:100%;width:auto;display:block;margin:auto;">
+    <defs>${defs}</defs>
+    ${back}
+    <path d="M32 68 q18 -10 36 0 l7 54 q-25 9 -50 0 z" fill="${fill}" stroke="#00000018" stroke-width="1"/>
+    <path d="M50 63 l13 13 l-13 15 l-13 -15 z" fill="${fill}" stroke="#ffffff99" stroke-width="1.5"/>
+    <path d="M32 68 q-11 9 -9 24 l9 3 q2 -14 6 -21 z" fill="${fill}" stroke="#00000018"/>
+    <path d="M68 68 q11 9 9 24 l-9 3 q-2 -14 -6 -21 z" fill="${fill}" stroke="#00000018"/>
+    <rect x="28" y="92" width="44" height="13" rx="4" fill="${obi}"/>
+    ${obiKnot}
+    <g transform="rotate(16 78 104)">
+      <rect x="76.5" y="104" width="3" height="12" rx="1.5" fill="#c9862c"/>
+      <circle cx="78" cy="98" r="9" fill="#fff" stroke="#e85345" stroke-width="2"/>
+      <circle cx="78" cy="98" r="4" fill="#e85345"/>
+    </g>
+    <ellipse cx="42" cy="146" rx="8" ry="4" fill="#c9862c"/>
+    <ellipse cx="58" cy="146" rx="8" ry="4" fill="#c9862c"/>
+    <path d="M42 143 v-3 M58 143 v-3" stroke="#e85345" stroke-width="2.5"/>
+    <circle cx="50" cy="46" r="23" fill="${SKIN}"/>
+    ${bangs}
+    <ellipse cx="41" cy="51" rx="3.4" ry="4.8" fill="#4a342a"/><circle cx="42.3" cy="48.8" r="1.5" fill="#fff"/><circle cx="40" cy="52.5" r=".8" fill="#fff" opacity=".8"/>
+    <ellipse cx="59" cy="51" rx="3.4" ry="4.8" fill="#4a342a"/><circle cx="60.3" cy="48.8" r="1.5" fill="#fff"/><circle cx="58" cy="52.5" r=".8" fill="#fff" opacity=".8"/>
+    <ellipse cx="32.5" cy="57.5" rx="4.2" ry="2.6" fill="#ffb0a0" opacity=".85"/>
+    <ellipse cx="67.5" cy="57.5" rx="4.2" ry="2.6" fill="#ffb0a0" opacity=".85"/>
+    <path d="M46 59.5 q4 4.5 8 0 z" fill="#e0796a"/>
+    ${acc}${wornMask}
+  </svg>`;
+}
+/* おかあさん */
+function momSVG(mood,size=72){
+  const H='#4a342a';
+  const eyes = mood==='angry'
+    ? `<path d="M15 22 l8 4 M41 26 l8 -4" stroke="#3a2c26" stroke-width="2.6" stroke-linecap="round"/>`
+    : mood==='happy'
+    ? `<path d="M15 24 q4 -4 8 0 M41 24 q4 -4 8 0" stroke="#3a2c26" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
+    : `<circle cx="20" cy="24" r="2.4" fill="#3a2c26"/><circle cx="44" cy="24" r="2.4" fill="#3a2c26"/>`;
+  const mouth = mood==='angry'
+    ? `<path d="M24 38 q8 -6 16 0" stroke="#c0392b" stroke-width="2.6" fill="none" stroke-linecap="round"/>`
+    : `<path d="M25 35 q7 6 14 0" stroke="#e0796a" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+  const puri = mood==='angry' ? `<g stroke="#e85345" stroke-width="2.6" stroke-linecap="round"><path d="M54 6 q4 3 0 6 q-4 3 0 6 M60 8 q4 3 0 6"/></g>` : '';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 64 64">
+    <circle cx="32" cy="12" r="8" fill="${H}"/>
+    <path d="M10 30 a22 22 0 0 1 44 0 v6 a22 12 0 0 1 -44 0 z" fill="${H}"/>
+    <circle cx="32" cy="30" r="18" fill="#ffe3c8"/>
+    <path d="M15 26 a17 15 0 0 1 34 0 l-4 2 a14 11 0 0 0 -26 0 z" fill="${H}"/>
+    ${eyes}
+    <ellipse cx="18" cy="31" rx="3.4" ry="2.2" fill="#ffb0a0" opacity=".8"/>
+    <ellipse cx="46" cy="31" rx="3.4" ry="2.2" fill="#ffb0a0" opacity=".8"/>
+    ${mouth}${puri}
+  </svg>`;
+}
+
+/* ================= とけい ================= */
+function nowHM(){ return {h:5+Math.floor(S.time/60), m:S.time%60}; }
+function clockSVG(size=42){
+  const {h,m}=nowHM();
+  const ha=((h%12)+m/60)*30, ma=m*6;
+  let ticks='';
+  for(let i=0;i<12;i++){
+    const a=i*30*Math.PI/180;
+    const big=i%3===0;
+    ticks+=`<line x1="${22+Math.sin(a)*(big?15:17)}" y1="${22-Math.cos(a)*(big?15:17)}" x2="${22+Math.sin(a)*19}" y2="${22-Math.cos(a)*19}" stroke="#8a5a2a" stroke-width="${big?2:1}"/>`;
+  }
+  const pa=7*30*Math.PI/180; // 7じのやくそくマーク
+  return `<svg width="${size}" height="${size}" viewBox="0 0 44 44">
+    <circle cx="22" cy="22" r="21" fill="#fff" stroke="#8a5a2a" stroke-width="2.5"/>
+    ${ticks}
+    <circle cx="${22+Math.sin(pa)*13}" cy="${22-Math.cos(pa)*13}" r="3" fill="var(--aka)"/>
+    <line x1="22" y1="22" x2="${22+Math.sin(ha*Math.PI/180)*9}" y2="${22-Math.cos(ha*Math.PI/180)*9}" stroke="#3a2c26" stroke-width="3.4" stroke-linecap="round"/>
+    <line x1="22" y1="22" x2="${22+Math.sin(ma*Math.PI/180)*14}" y2="${22-Math.cos(ma*Math.PI/180)*14}" stroke="var(--aka)" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="22" cy="22" r="2.2" fill="#3a2c26"/>
+  </svg>`;
+}
+function timeText(){ const {h,m}=nowHM(); return `${h}じ${m?`${m}ぷん`:''}`; }
+function updateStatus(){
+  if(!S.started) return;
+  document.getElementById('clock-svg').innerHTML=clockSVG();
+  document.getElementById('clock-text').textContent=timeText();
+  const v=S.hunger;
+  document.getElementById('mface').textContent = v>=60?'😊':v>=30?'😯':'😫';
+  const f=document.getElementById('mbarfill');
+  f.style.width=Math.max(v,4)+'%';
+  f.style.background = v>=60?'#57b98b':v>=30?'#f5c542':'#e85345';
+  const hb=document.getElementById('home-btn');
+  if(S.time>=90) hb.classList.add('urgent');
+}
+function advanceTime(min){
+  const prev=S.time;
+  S.time+=min;
+  updateStatus();
+  if(S.time>=HARD && !S.ended){ setTimeout(()=>goHome(true),1600); toast(`よるの 7じはん…！！<br>おかあさんが むかえにきた！💢`); sBuzz(); return; }
+  if(prev<PROMISE && S.time>=PROMISE){ toast(`⏰ 7じに なっちゃった！<br>いそいで かえろう！`); sBuzz(); return; }
+  if(prev<110 && S.time>=110 && !S.warned110){ S.warned110=true; toast(`🕐 もうすぐ 7じ！<br>そろそろ かえろうね`); return; }
+  if(prev<90 && S.time>=90 && !S.warned90){ S.warned90=true; toast(`🕡 6じはんだよ。<br>とけいの はりを みてみて！`); }
+}
+function changeHunger(d){
+  S.hunger=Math.max(0,Math.min(100,S.hunger+d));
+  updateStatus();
+}
+
+/* ================= 屋台データ ================= */
+const STALLS=[
+  {id:'yoyo',    name:'ヨーヨーつり',     price:100, type:'game', itemName:'ヨーヨー'},
+  {id:'kingyo',  name:'きんぎょすくい',   price:300, type:'game', itemName:'きんぎょ'},
+  {id:'shateki', name:'しゃてき',         price:300, type:'game', itemName:'けいひんのくま'},
+  {id:'wanage',  name:'わなげ',           price:200, type:'game', itemName:'わなげのおかし'},
+  {id:'strike',  name:'ストラックアウト', price:250, type:'game', itemName:'きんメダル'},
+  {id:'bowling', name:'ボウリング',       price:300, type:'game', itemName:'ストライクバッジ'},
+  {id:'katanuki',name:'かたぬき',         price:150, type:'game', itemName:'ほしのかたぬき'},
+  {id:'kuji',    name:'くじびき',         price:200, type:'game', itemName:'くじのけいひん'},
+  {id:'obake',   name:'おばけやしき',     price:200, type:'game', itemName:'おばけたいじバッジ'},
+  {id:'ringo',   name:'りんごあめ',       price:150, type:'food', feed:25},
+  {id:'wata',    name:'わたあめ',         price:200, type:'food', feed:20},
+  {id:'banana',  name:'チョコバナナ',     price:150, type:'food', feed:30},
+  {id:'corn',    name:'やきとうもろこし', price:250, type:'food', feed:40},
+  {id:'kakigori',name:'かきごおり',       price:200, type:'food', feed:25},
+  {id:'omen',    name:'おめんやさん',     price:300, type:'goods', itemName:'おめん'},
+];
+function stallArt(id,w=170){
+  const col={yoyo:'#3aa4dd',kingyo:'#e85345',shateki:'#f5a03a',wanage:'#57b98b',strike:'#4a7fd4',bowling:'#8a5ad4',katanuki:'#ff7bac',kuji:'#e85345',obake:'#5a3a8a',ringo:'#e85345',wata:'#ff7bac',banana:'#f5c542',corn:'#e8a03a',kakigori:'#3aa4dd',omen:'#c0392b'}[id];
+  const inner={ // x24-166 y50-114
+    yoyo:`<rect x="50" y="82" width="86" height="26" rx="8" fill="#7fd4ff"/><circle cx="66" cy="94" r="9" fill="#ff5a7a"/><circle cx="90" cy="96" r="9" fill="#f5c542"/><circle cx="114" cy="93" r="9" fill="#57b98b"/><path d="M66 94 q4 -4 0 -8 M90 96 q4 -4 0 -8 M114 93 q4 -4 0 -8" stroke="#fff" stroke-width="2" fill="none"/>`,
+    kingyo:`<rect x="48" y="80" width="90" height="30" rx="10" fill="#7fd4ff"/><path d="M78 95 q-7 -8 -14 0 q7 8 14 0 M78 95 l6 -4 v8 z" fill="#ff5a3a"/><path d="M114 98 q-7 -8 -14 0 q7 8 14 0 M114 98 l6 -4 v8 z" fill="#ffb03a"/>`,
+    shateki:`<rect x="42" y="92" width="106" height="5" fill="#c9862c"/><circle cx="60" cy="80" r="9" fill="#c98f5a"/><circle cx="54" cy="73" r="4" fill="#c98f5a"/><circle cx="66" cy="73" r="4" fill="#c98f5a"/><rect x="88" y="70" width="16" height="22" rx="3" fill="#4a7fd4"/><circle cx="128" cy="80" r="10" fill="#e85345"/><circle cx="128" cy="80" r="6" fill="#fff"/><circle cx="128" cy="80" r="2.5" fill="#e85345"/><rect x="60" y="102" width="34" height="6" rx="3" fill="#5a4232"/>`,
+    wanage:`<rect x="60" y="84" width="6" height="24" fill="#c9862c"/><rect x="92" y="80" width="6" height="28" fill="#c9862c"/><rect x="124" y="84" width="6" height="24" fill="#c9862c"/><ellipse cx="95" cy="84" rx="13" ry="5" fill="none" stroke="#e85345" stroke-width="4"/><ellipse cx="63" cy="106" rx="13" ry="5" fill="none" stroke="#f5c542" stroke-width="4"/>`,
+    strike:`<g>${[0,1,2].map(r=>[0,1,2].map(c=>`<rect x="${64+c*22}" y="${58+r*18}" width="19" height="15" rx="2" fill="${(r*3+c)%2?'#fff':'#ffe9a8'}" stroke="#c9862c"/><text x="${73.5+c*22}" y="${70+r*18}" text-anchor="middle" font-size="10" font-weight="900" fill="#8a5a2a">${r*3+c+1}</text>`).join('')).join('')}</g>`,
+    bowling:`<path d="M70 74 q6 8 0 18 q-3 8 3 14 h-12 q6 -6 3 -14 q-6 -10 0 -18 q2 -5 3 -5 q1 0 3 5 z" fill="#fff" stroke="#ddd" transform="translate(-3 0)"/><path d="M96 74 q6 8 0 18 q-3 8 3 14 h-12 q6 -6 3 -14 q-6 -10 0 -18 q2 -5 3 -5 q1 0 3 5 z" fill="#fff" stroke="#ddd"/><rect x="60" y="80" width="10" height="3" fill="#e85345" transform="translate(-3 0)"/><rect x="86" y="80" width="10" height="3" fill="#e85345"/><circle cx="128" cy="98" r="12" fill="#4a7fd4"/><circle cx="124" cy="94" r="1.8" fill="#1b2a5e"/><circle cx="130" cy="93" r="1.8" fill="#1b2a5e"/>`,
+    katanuki:`<rect x="56" y="70" width="42" height="34" rx="6" fill="#ffb0c9"/><path d="M77 76 l3.5 7 8 1 -6 5.5 1.5 8 -7 -4 -7 4 1.5 -8 -6 -5.5 8 -1 z" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="3 3"/><rect x="108" y="70" width="42" height="34" rx="6" fill="#a8e0c0"/><circle cx="129" cy="87" r="11" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="3 3"/>`,
+    kuji:`<rect x="70" y="60" width="50" height="30" rx="6" fill="#e85345"/><text x="95" y="81" text-anchor="middle" font-size="16" font-weight="900" fill="#fff">くじ</text><path d="M78 90 v18 M88 90 v14 M98 90 v18 M108 90 v14" stroke="#fff" stroke-width="2.5"/>`,
+    obake:`<path d="M80 66 a16 16 0 0 1 32 0 v26 l-6 -5 -5 5 -5 -5 -5 5 -5 -5 -6 5 z" fill="#fff" opacity=".95"/><circle cx="89" cy="72" r="3" fill="#3a2c26"/><circle cx="103" cy="72" r="3" fill="#3a2c26"/><ellipse cx="96" cy="81" rx="4" ry="5" fill="#3a2c26"/><text x="132" y="88" font-size="18">🌙</text>`,
+    ringo:`<circle cx="72" cy="92" r="14" fill="#d42a2a"/><rect x="70" y="72" width="4" height="14" fill="#a06a3a"/><circle cx="106" cy="96" r="14" fill="#d42a2a"/><rect x="104" y="76" width="4" height="14" fill="#a06a3a"/><circle cx="68" cy="87" r="4" fill="#fff" opacity=".6"/><circle cx="102" cy="91" r="4" fill="#fff" opacity=".6"/>`,
+    wata:`<ellipse cx="72" cy="88" rx="17" ry="14" fill="#ffd6ec"/><rect x="70" y="98" width="4" height="16" fill="#fff"/><ellipse cx="110" cy="90" rx="15" ry="12" fill="#d6f0ff"/><rect x="108" y="98" width="4" height="16" fill="#fff"/>`,
+    banana:`<path d="M62 76 q16 -12 30 2 q-16 10 -30 -2 z" fill="#f5c542" transform="rotate(-30 77 80)"/><path d="M66 70 q10 -7 18 0 z" fill="#6a3a1a" transform="rotate(-30 77 80)"/><rect x="74" y="88" width="4" height="22" fill="#e8dcc0"/><path d="M100 82 q16 -12 30 2 q-16 10 -30 -2 z" fill="#f5c542" transform="rotate(-30 115 86)"/><path d="M104 76 q10 -7 18 0 z" fill="#6a3a1a" transform="rotate(-30 115 86)"/><rect x="112" y="94" width="4" height="18" fill="#e8dcc0"/>`,
+    corn:`<ellipse cx="80" cy="86" rx="26" ry="11" fill="#f5c542" transform="rotate(-18 80 86)"/><path d="M60 94 l-10 8 M100 78 l10 -8" stroke="#c9862c" stroke-width="4"/><ellipse cx="120" cy="98" rx="24" ry="10" fill="#e8a03a" transform="rotate(-18 120 98)"/><path d="M96 84 q6 -8 4 -14 M112 90 q6 -8 4 -14" stroke="#fff" stroke-width="2" fill="none" opacity=".7"/>`,
+    kakigori:`<path d="M66 88 h34 l-6 20 h-22 z" fill="#7fd4ff"/><path d="M64 88 a19 16 0 0 1 38 0 z" fill="#fff"/><path d="M70 80 a14 10 0 0 1 26 0 l-26 8 z" fill="#ff5a7a" opacity=".85"/><rect x="118" y="62" width="3" height="30" fill="#8a5a2a"/><path d="M121 62 h20 v14 h-20 z" fill="#fff" stroke="#3aa4dd"/><text x="131" y="74" text-anchor="middle" font-size="11" font-weight="900" fill="#3aa4dd">氷</text>`,
+    omen:`<g transform="translate(56 60) scale(.9)">${maskSVG('kitsune',44).replace(/<\/?svg[^>]*>/g,'')}</g><g transform="translate(104 62) scale(.9)">${maskSVG('oni',44).replace(/<\/?svg[^>]*>/g,'')}</g>`,
+  }[id];
+  const awn=(c)=>{let s='';for(let i=0;i<6;i++){s+=`<path d="M${10+i*30} 30 h30 l-5 16 q-10 8 -20 0 z" fill="${i%2?'#fff':c}"/>`;}return s;};
+  const boardCol = id==='obake' ? '#2a1a4a' : '#ffeeda';
+  return `<svg viewBox="0 0 190 130" width="${w}">
+    <rect x="18" y="44" width="154" height="76" rx="6" fill="#8a5a2a"/>
+    <rect x="24" y="50" width="142" height="64" rx="4" fill="${boardCol}"/>
+    ${inner}
+    <rect x="24" y="106" width="142" height="10" fill="#6a4420"/>
+    <rect x="6" y="24" width="178" height="10" rx="5" fill="${col}"/>
+    ${awn(col)}
+  </svg>`;
+}
+function itemIcon(id,size=44){
+  const art={
+    yoyo:`<circle cx="20" cy="22" r="13" fill="#ff5a7a"/><path d="M20 22 q6 -6 0 -12" stroke="#fff" stroke-width="2.5" fill="none"/><path d="M20 9 q0 -6 5 -6" stroke="#ddd" stroke-width="2" fill="none"/>`,
+    ringo:`<circle cx="20" cy="24" r="12" fill="#d42a2a"/><rect x="18" y="4" width="4" height="12" fill="#a06a3a"/><circle cx="16" cy="20" r="3.5" fill="#fff" opacity=".6"/>`,
+    wata:`<ellipse cx="20" cy="16" rx="14" ry="11" fill="#ffd6ec"/><circle cx="12" cy="14" r="6" fill="#ffe2f2"/><circle cx="27" cy="12" r="6" fill="#ffe2f2"/><rect x="18" y="24" width="4" height="14" fill="#fff"/>`,
+    kingyo:`<path d="M8 22 a12 12 0 0 1 24 0 l2 12 q-14 6 -28 0 z" fill="#cfeeff" opacity=".9"/><path d="M26 24 q-6 -7 -12 0 q6 7 12 0 M26 24 l5 -3.5 v7 z" fill="#ff5a3a"/><path d="M8 22 a12 4 0 0 1 24 0" fill="none" stroke="#8ac4e0" stroke-width="2"/>`,
+    shateki:`<circle cx="20" cy="22" r="11" fill="#c98f5a"/><circle cx="13" cy="13" r="5" fill="#c98f5a"/><circle cx="27" cy="13" r="5" fill="#c98f5a"/><circle cx="16.5" cy="21" r="1.6" fill="#3a2c26"/><circle cx="23.5" cy="21" r="1.6" fill="#3a2c26"/><ellipse cx="20" cy="26" rx="3.5" ry="2.6" fill="#f0d0a8"/>`,
+    wanage:`<ellipse cx="20" cy="20" rx="13" ry="6" fill="none" stroke="#e85345" stroke-width="5"/><rect x="17" y="24" width="6" height="12" rx="2" fill="#f5c542"/>`,
+    strike:`<circle cx="20" cy="20" r="13" fill="#f5c542" stroke="#d4a017" stroke-width="2"/><text x="20" y="26" text-anchor="middle" font-size="14" font-weight="900" fill="#8a5a2a">1</text>`,
+    bowling:`<path d="M20 5 q7 9 0 20 q-4 8 4 12 h-16 q8 -4 4 -12 q-7 -11 0 -20 q2 -3 4 -3 q2 0 4 3 z" fill="#fff" stroke="#ccc" transform="scale(.9) translate(2 2)"/><rect x="14" y="14" width="12" height="3" fill="#e85345"/>`,
+    katanuki:`<path d="M20 5 l4.4 9 10 1.3 -7.4 7 1.9 10 -8.9 -5 -8.9 5 1.9 -10 -7.4 -7 10 -1.3 z" fill="#ffb0c9" stroke="#ff7bac"/>`,
+    kuji:`<rect x="7" y="14" width="26" height="20" rx="4" fill="#e85345"/><rect x="7" y="14" width="26" height="7" fill="#c0392b"/><path d="M20 8 q-6 -6 -9 2 q6 3 9 -2 q6 -6 9 2 q-6 3 -9 -2 v28" stroke="#f5c542" stroke-width="2.5" fill="none"/>`,
+    obake:`<circle cx="20" cy="20" r="14" fill="#7a5ad4"/><path d="M14 14 a6 6 0 0 1 12 0 v10 l-3 -2 -3 2 -3 -2 -3 2 z" fill="#fff"/><circle cx="17.5" cy="16" r="1.4" fill="#3a2c26"/><circle cx="22.5" cy="16" r="1.4" fill="#3a2c26"/>`,
+    banana:`<path d="M8 20 q14 -12 26 2 q-14 10 -26 -2 z" fill="#6a3a1a" transform="rotate(-24 20 20)"/><path d="M12 24 q10 6 18 -1 l2 3 q-10 8 -22 0 z" fill="#f5c542" transform="rotate(-24 20 20)"/><rect x="18" y="26" width="4" height="12" fill="#e8dcc0"/>`,
+    corn:`<ellipse cx="20" cy="18" rx="14" ry="7" fill="#f5c542" transform="rotate(-24 20 18)"/><rect x="18" y="26" width="4" height="12" fill="#8a5a2a"/>`,
+    kakigori:`<path d="M10 18 h20 l-4 14 h-12 z" fill="#7fd4ff"/><path d="M8 18 a12 10 0 0 1 24 0 z" fill="#fff"/><path d="M12 13 a9 6 0 0 1 16 0 l-16 5 z" fill="#ff5a7a" opacity=".85"/>`,
+    omen: null,
+  }[id];
+  if(id==='omen') return maskSVG(S.mask||'kitsune',size);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40">${art}</svg>`;
+}
+
+/* ================= 画面管理 ================= */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id==='scr-map') renderMap();
+  document.getElementById('scr-game').classList.remove('spooky');
+}
+function toast(msg,cb){
+  const t=document.getElementById('toast');
+  t.innerHTML=msg; t.classList.remove('show');
+  void t.offsetWidth; t.classList.add('show');
+  if(cb) setTimeout(cb,1500);
+}
+function walletTotal(){ return DENOMS.reduce((a,v)=>a+v*S.wallet[v],0); }
+function trayTotal(){ return DENOMS.reduce((a,v)=>a+v*S.tray[v],0); }
+function renderWallet(elId,interactive){
+  const el=document.getElementById(elId);
+  el.innerHTML=DENOMS.map(v=>{
+    const n=S.wallet[v];
+    return `<div class="wgroup ${n===0?'empty':''}" ${interactive?`onclick="coinToTray(${v})"`:''}>
+      ${coinSVG(v,42)}<span class="wcount" style="color:#5a4632">×${n}</span></div>`;
+  }).join('');
+}
+
+/* ================= ちょうちん・タイトル ================= */
+function lanternSVG(){return `<svg viewBox="0 0 34 44" width="34"><line x1="17" y1="0" x2="17" y2="6" stroke="#caa" stroke-width="2"/><rect x="12" y="4" width="10" height="4" rx="2" fill="#7a3020"/><ellipse cx="17" cy="24" rx="14" ry="17" fill="#ff8a5a"/><path d="M7 14 q10 -5 20 0 M5 24 h24 M7 34 q10 5 20 0" stroke="#d45a30" stroke-width="1.5" fill="none"/><rect x="12" y="38" width="10" height="4" rx="2" fill="#7a3020"/><ellipse cx="12" cy="18" rx="4" ry="7" fill="#ffd98a" opacity=".7"/></svg>`;}
+document.getElementById('lanterns').innerHTML=Array(8).fill(0).map(()=>`<div class="lantern">${lanternSVG()}</div>`).join('');
+document.getElementById('title-avatar').innerHTML=avatarSVG('title');
+
+/* ================= きせかえ ================= */
+const TABS=[
+  {key:'gender', label:'だれ', kind:'gender'},
+  {key:'base', label:'ゆかた', kind:'color', opts:BASES},
+  {key:'pattern', label:'もよう', kind:'pattern', opts:PATTERNS},
+  {key:'obi', label:'おび', kind:'color', opts:OBIS},
+  {key:'hair', label:'かみがた', kind:'hair'},
+];
+let curTab=0;
+function startDress(){ ac(); playJingle(); showScreen('scr-dress'); renderDress(); }
+function setGender(g){ S.yukata.gender=g; S.yukata.hair=0; sTap(); renderDress(); }
+function hairMini(o){
+  const H='#5a4232', SK='#ffe3c8';
+  const m={
+    twin:`<circle cx="9" cy="26" r="7" fill="${H}"/><circle cx="35" cy="26" r="7" fill="${H}"/><circle cx="22" cy="21" r="12" fill="${H}"/><circle cx="22" cy="25" r="9" fill="${SK}"/><circle cx="10" cy="19" r="3" fill="#ff7bac"/><circle cx="34" cy="19" r="3" fill="#ff7bac"/>`,
+    bob:`<path d="M8 21 a14 14 0 0 1 28 0 v9 q0 5 -5 5 h-18 q-5 0 -5 -5 z" fill="${H}"/><circle cx="22" cy="25" r="9" fill="${SK}"/><circle cx="13" cy="13" r="3.5" fill="#ff7bac"/>`,
+    odango:`<circle cx="13" cy="9" r="5.5" fill="${H}"/><circle cx="31" cy="9" r="5.5" fill="${H}"/><circle cx="22" cy="22" r="12" fill="${H}"/><circle cx="22" cy="26" r="9" fill="${SK}"/>`,
+    short:`<circle cx="22" cy="21" r="12" fill="${H}"/><circle cx="22" cy="26" r="9" fill="${SK}"/>`,
+    spiky:`<path d="M10 22 L13 8 L18 15 L22 5 L26 15 L31 8 L34 22 z" fill="${H}"/><circle cx="22" cy="24" r="9.5" fill="${SK}"/><path d="M13 20 a11 8 0 0 1 18 0 l-2 2 a9 6 0 0 0 -14 0 z" fill="${H}"/>`,
+    mage:`<circle cx="22" cy="8" r="4.5" fill="${H}"/><circle cx="22" cy="21" r="12" fill="${H}"/><circle cx="22" cy="26" r="9" fill="${SK}"/>`,
+  }[o];
+  return `<svg width="44" height="44" viewBox="0 0 44 44" style="background:#ffeeda;border-radius:12px">${m}</svg>`;
+}
+function renderDress(){
+  document.getElementById('dress-stage').innerHTML=avatarSVG('dress');
+  document.getElementById('ptabs').innerHTML=TABS.map((t,i)=>
+    `<button class="ptab ${i===curTab?'on':''}" onclick="curTab=${i};renderDress();sTap()">${t.label}</button>`).join('');
+  const tab=TABS[curTab];
+  const sw=document.getElementById('swatches');
+  if(tab.kind==='gender'){
+    const SK='#ffe3c8', H='#5a4232';
+    const face=(g)=>{
+      const hair=g==='girl'
+        ?`<circle cx="9" cy="24" r="6" fill="${H}"/><circle cx="35" cy="24" r="6" fill="${H}"/><circle cx="22" cy="19" r="11" fill="${H}"/><circle cx="22" cy="23" r="8.5" fill="${SK}"/><path d="M14 18 a9 7 0 0 1 16 0 l-2 2 a7 5 0 0 0 -12 0 z" fill="${H}"/><circle cx="10" cy="17" r="2.6" fill="#ff7bac"/><circle cx="34" cy="17" r="2.6" fill="#ff7bac"/>`
+        :`<circle cx="22" cy="19" r="11" fill="${H}"/><circle cx="22" cy="23" r="8.5" fill="${SK}"/><path d="M14 18 a9 7 0 0 1 16 0 l-2 2 a7 5 0 0 0 -12 0 z" fill="${H}"/>`;
+      return `${hair}<circle cx="19" cy="24" r="1.4" fill="#4a342a"/><circle cx="25" cy="24" r="1.4" fill="#4a342a"/><path d="M20 27.5 q2 2 4 0" stroke="#e0796a" stroke-width="1.4" fill="none" stroke-linecap="round"/><text x="22" y="41" text-anchor="middle" font-size="8.5" font-weight="900" fill="#8a5a2a">${g==='girl'?'おんなのこ':'おとこのこ'}</text>`;
+    };
+    sw.innerHTML=['girl','boy'].map(g=>
+      `<div class="sw ${S.yukata.gender===g?'on':''}" style="background:var(--paper2)" onclick="setGender('${g}')"><svg width="44" height="44" viewBox="0 0 44 44">${face(g)}</svg></div>`).join('');
+    return;
+  }
+  const opts = tab.kind==='hair' ? (S.yukata.gender==='girl'?HAIRS_G:HAIRS_B) : tab.opts;
+  sw.innerHTML=opts.map((o,i)=>{
+    const on=S.yukata[tab.key]===i;
+    let inner='';
+    if(tab.kind==='color') inner=`<div style="width:44px;height:44px;border-radius:12px;background:${o}"></div>`;
+    if(tab.kind==='pattern'){
+      const mini={asagao:'<circle cx="22" cy="22" r="9" fill="#fff"/><circle cx="22" cy="22" r="4" fill="#e85345"/>',
+        kingyo:'<path d="M28 22 q-8 -9 -16 0 q8 9 16 0 M28 22 l7 -5 v10 z" fill="#fff"/>',
+        hanabi:'<g stroke="#ffe9a8" stroke-width="2.4"><line x1="22" y1="8" x2="22" y2="36"/><line x1="8" y1="22" x2="36" y2="22"/><line x1="12" y1="12" x2="32" y2="32"/><line x1="32" y1="12" x2="12" y2="32"/></g>',
+        none:'<text x="22" y="28" text-anchor="middle" font-size="12" font-weight="900" fill="#8a7a68">むじ</text>'}[o];
+      inner=`<svg width="44" height="44" viewBox="0 0 44 44" style="background:${BASES[S.yukata.base]};border-radius:12px">${mini}</svg>`;
+    }
+    if(tab.kind==='hair') inner=hairMini(o);
+    return `<div class="sw ${on?'on':''}" style="background:var(--paper2)" onclick="S.yukata.${tab.key}=${i};renderDress();sTap()">${inner}</div>`;
+  }).join('');
+}
+
+/* ================= おこづかい&やくそく ================= */
+function startMoney(){
+  sYay(); showScreen('scr-money');
+  document.getElementById('mom-face1').innerHTML=momSVG('happy',72);
+  const el=document.getElementById('gift-coins');
+  let coins=[];
+  GIFT.forEach(g=>{for(let i=0;i<g.n;i++)coins.push(g.v);});
+  el.innerHTML=coins.map((v,i)=>`<div class="gift-coin" style="animation-delay:${i*.06}s" onclick="takeGift(this,${v})">${coinSVG(v,54)}</div>`).join('');
+  renderWallet('wallet-money',false);
+}
+function takeGift(el,v){
+  S.wallet[v]++; el.remove(); sCoin();
+  renderWallet('wallet-money',false);
+  if(!document.querySelector('#gift-coins .gift-coin')){
+    document.getElementById('money-go').disabled=false;
+    toast('ぜんぶで <b style="color:var(--aka)">1500えん</b>！<br>だいじに つかおうね');
+  }
+}
+function startFestival(){
+  S.started=true;
+  document.getElementById('statusbar').classList.add('show');
+  updateStatus();
+  playJingle();
+  showScreen('scr-map');
+}
+
+/* ================= マップ ================= */
+function renderMap(){
+  document.getElementById('map-grid').innerHTML=STALLS.map(st=>{
+    const sold=S.bought[st.id];
+    const badge = st.type==='game'?'<span class="badge b-game">あそぶ</span>':st.type==='food'?'<span class="badge b-food">たべる</span>':'<span class="badge b-goods">かう</span>';
+    return `<button class="stall ${sold?'soldout':''}" onclick="openShop('${st.id}')">
+      ${stallArt(st.id)}
+      <div class="sname">${st.name}${badge}</div>
+      <div class="sprice">${st.price}えん ${sold?'✓':''}</div>
+    </button>`;
+  }).join('');
+  renderWallet('wallet-map',false);
+  updateStatus();
+}
+
+/* ================= かいもの ================= */
+function openShop(id){
+  sTap();
+  const st=STALLS.find(s=>s.id===id);
+  if(S.bought[id] && st.type!=='food'){ toast('きょうは もう あそんだよ！<br>ほかのおみせに いこう'); return; }
+  if(st.type==='game' && S.hunger<20){ toast('おなかが ぺこぺこで ちからがでない〜！<br>🍌 なにか たべよう'); sBuzz(); return; }
+  if(walletTotal()<st.price){ toast('おかねが たりないみたい…'); return; }
+  S.currentStall=st;
+  S.tray={500:0,100:0,50:0,10:0};
+  showScreen('scr-shop');
+  document.getElementById('shop-title').textContent=st.name;
+  document.getElementById('shop-item-art').innerHTML=
+    stallArt(st.id,150)+`<div class="price-tag">${st.price}<small>えん ください</small></div>`;
+  document.getElementById('hint-pop').textContent='';
+  renderShop();
+}
+function renderShop(){
+  renderWallet('wallet-shop',true);
+  const tray=document.getElementById('tray');
+  let html='<span class="tray-label">ここに おかねを だしてね</span>';
+  DENOMS.forEach(v=>{ for(let i=0;i<S.tray[v];i++) html+=`<div class="tray-coin" onclick="coinBack(${v})">${coinSVG(v,44)}</div>`; });
+  tray.innerHTML=html;
+  const t=trayTotal(), p=S.currentStall.price;
+  document.getElementById('tray-total').innerHTML= t>0 ? `だしたおかね <b>${t}</b> えん` : `<span style="opacity:.7">まだ 0 えん</span>`;
+  const btn=document.getElementById('pay-btn');
+  btn.disabled=t<p;
+  btn.textContent = t>=p ? (t===p?'ぴったり！はらう':'はらう！') : 'はらう！';
+}
+function coinToTray(v){ if(S.wallet[v]<=0)return; S.wallet[v]--; S.tray[v]++; sCoin(); renderShop(); }
+function coinBack(v){ S.tray[v]--; S.wallet[v]++; sTap(); renderShop(); }
+function cancelShop(){
+  DENOMS.forEach(v=>{S.wallet[v]+=S.tray[v];S.tray[v]=0;});
+  sTap(); showScreen('scr-map');
+}
+function showHint(){
+  sTap();
+  const p=S.currentStall.price;
+  let rest=p, combo=[];
+  const avail={...S.wallet}; DENOMS.forEach(v=>avail[v]+=S.tray[v]);
+  for(const v of DENOMS){ while(rest>=v && avail[v]>0){ rest-=v; avail[v]--; combo.push(v);} }
+  let msg;
+  if(rest===0){
+    const cnt={}; combo.forEach(v=>cnt[v]=(cnt[v]||0)+1);
+    msg='ぴったりは… '+DENOMS.filter(v=>cnt[v]).map(v=>`${v}えんだま×${cnt[v]}`).join(' と ');
+  }else{
+    msg='おおきい コインで はらうと おつりが もらえるよ';
+  }
+  document.getElementById('hint-pop').textContent=msg;
+}
+function doPay(){
+  sPay();
+  const t=trayTotal(), p=S.currentStall.price, change=t-p;
+  S.tray={500:0,100:0,50:0,10:0};
+  if(change===0){ toast('ぴったり！すごい！ 💮',()=>startGame()); }
+  else{ showChange(change); }
+}
+/* ================= おつり ================= */
+let changeLeft=0;
+function showChange(change){
+  showScreen('scr-change');
+  document.getElementById('change-msg').innerHTML=`おつりは <b style="color:var(--aka);font-size:22px">${change}えん</b><br>コインを タッチして おさいふへ！`;
+  const coins=[]; let r=change;
+  for(const v of [100,50,10]){ while(r>=v){ r-=v; coins.push(v);} }
+  changeLeft=coins.length;
+  document.getElementById('change-coins').innerHTML=coins.map((v,i)=>
+    `<div class="gift-coin" style="animation-delay:${i*.08}s" onclick="takeChange(this,${v})">${coinSVG(v,52)}</div>`).join('');
+  renderWallet('wallet-change',false);
+}
+function takeChange(el,v){
+  S.wallet[v]++; el.remove(); sCoin(); changeLeft--;
+  renderWallet('wallet-change',false);
+  if(changeLeft===0) setTimeout(startGame,400);
+}
+
+/* ================= ミニゲーム ================= */
+const HIRAGANA=['あ','い','う','え','お','か','き','く','け','こ','さ','し','す','せ','そ','た','ち','つ','て','と','な','に','ぬ','ね','の','は','ひ','ふ','へ','ほ','ま','み','む','め','も'];
+function setMsg(m){ document.getElementById('game-msg').innerHTML=m; }
+function gameDone(){ document.getElementById('game-done').style.display='inline-block'; }
+function startGame(){
+  const st=S.currentStall;
+  showScreen('scr-game');
+  document.getElementById('game-title').textContent=st.name;
+  setMsg(''); document.getElementById('game-done').style.display='none';
+  const area=document.getElementById('game-area');
+  area.innerHTML='';
+
+  if(st.id==='yoyo'){
+    setMsg('すきな ヨーヨーを タッチ！');
+    const cols=['#ff5a7a','#f5c542','#57b98b','#8a5ad4'];
+    area.innerHTML=`<div class="pool">${cols.map((c,i)=>
+      `<div class="floaty bob" style="left:${8+i*23}%;top:${28+(i%2)*24}%;animation-delay:${i*.4}s" onclick="winSimple(this,'とれた！')">
+        <svg width="52" height="60" viewBox="0 0 52 60"><path d="M26 0 v14" stroke="#ddd" stroke-width="2"/><circle cx="26" cy="34" r="20" fill="${c}"/><path d="M26 34 q9 -9 0 -18" stroke="#fff" stroke-width="3" fill="none"/></svg>
+      </div>`).join('')}</div>`;
+  }
+
+  if(st.id==='kingyo'){
+    let need=2;
+    window._kingyoTap=(el)=>{
+      el.remove(); sYay(); need--;
+      setMsg(need>0?`とれた！あと ${need}ひき！`:'きんぎょ 2ひき ゲット！');
+      if(need===0) gameDone();
+    };
+    setMsg('きんぎょを 2ひき タッチしてね！');
+    const fish=['#ff5a3a','#ffb03a','#ff5a3a','#3a3a3a'];
+    area.innerHTML=`<div class="pool">${fish.map((c,i)=>
+      `<div class="floaty swim" style="top:${16+i*20}%;animation-duration:${4+i*1.3}s;animation-delay:${-i*1.7}s" onclick="_kingyoTap(this)">
+        <svg width="56" height="34" viewBox="0 0 56 34"><path d="M8 17 q14 -15 28 0 q-14 15 -28 0" fill="${c}"/><path d="M36 17 l14 -9 v18 z" fill="${c}"/><path d="M18 8 q4 -6 8 0 z" fill="${c}"/><circle cx="15" cy="14" r="3.2" fill="#fff"/><circle cx="15" cy="14" r="1.6" fill="#3a2c26"/><circle cx="12" cy="19" r="1.8" fill="#ffb0a0" opacity=".85"/></svg>
+      </div>`).join('')}</div>`;
+  }
+
+  if(st.id==='shateki'){
+    let shots=3, hit=0;
+    window._shot=(el,name)=>{
+      if(el.classList.contains('fall'))return;
+      shots--; hit++;
+      sCrash(); el.classList.add('fall');
+      setMsg(`「${name}」に めいちゅう！ すごーい！`);
+      document.getElementById('shot-count').textContent='のこりのたま: '+'●'.repeat(shots);
+      gameDone();
+    };
+    setMsg('けいひんを ねらって タッチ！(コルクじゅう発射!)');
+    area.innerHTML=`
+      <svg width="min(94%,460px)" viewBox="0 0 300 170">
+        <rect x="10" y="120" width="280" height="8" fill="#c9862c"/>
+        <g class="wiggle" style="cursor:pointer" onclick="_shot(this,'くまのぬいぐるみ')">
+          <circle cx="70" cy="98" r="20" fill="#c98f5a"/><circle cx="57" cy="82" r="8" fill="#c98f5a"/><circle cx="83" cy="82" r="8" fill="#c98f5a"/>
+          <circle cx="64" cy="96" r="2.5" fill="#3a2c26"/><circle cx="76" cy="96" r="2.5" fill="#3a2c26"/><ellipse cx="70" cy="104" rx="6" ry="4.5" fill="#f0d0a8"/>
+        </g>
+        <g class="wiggle" style="cursor:pointer;animation-delay:.5s" onclick="_shot(this,'ロボット')">
+          <rect x="135" y="78" width="30" height="30" rx="4" fill="#4a7fd4"/><rect x="141" y="70" width="18" height="12" rx="3" fill="#7fa8e8"/><circle cx="146" cy="76" r="2" fill="#fff"/><circle cx="154" cy="76" r="2" fill="#fff"/>
+        </g>
+        <g class="wiggle" style="cursor:pointer;animation-delay:1s" onclick="_shot(this,'おかしのはこ')">
+          <rect x="215" y="82" width="34" height="26" rx="4" fill="#ff7bac"/><path d="M232 82 v26 M215 95 h34" stroke="#fff" stroke-width="3"/>
+        </g>
+        <rect x="120" y="150" width="60" height="10" rx="5" fill="#5a4232"/>
+        <rect x="172" y="146" width="16" height="8" rx="3" fill="#8a5a2a"/>
+      </svg>
+      <div id="shot-count" style="color:var(--lantern-glow);font-weight:900">のこりのたま: ●●●</div>`;
+  }
+
+  if(st.id==='wanage'){
+    window._nage=(el,prize)=>{
+      if(el.dataset.done)return; el.dataset.done=1;
+      const ring=el.querySelector('.ringdrop');
+      ring.style.opacity=1; ring.style.transform='translateY(0)';
+      sYay(); setMsg(`はいった〜！「${prize}」ゲット！`);
+      gameDone();
+    };
+    setMsg('わをいれたい ぼうを タッチ！');
+    area.innerHTML=`<svg width="min(94%,460px)" viewBox="0 0 300 170">
+      <rect x="10" y="140" width="280" height="10" rx="4" fill="#c9862c"/>
+      ${[['あめ',70,'#e85345'],['ラムネ',150,'#3aa4dd'],['チョコ',230,'#8a5ad4']].map(([p,x,c],i)=>`
+        <g style="cursor:pointer" onclick="_nage(this,'${p}')">
+          <rect x="${x-4}" y="92" width="8" height="48" rx="3" fill="#c9862c"/>
+          <rect x="${x-16}" y="76" width="32" height="16" rx="4" fill="${c}"/>
+          <text x="${x}" y="88" text-anchor="middle" font-size="10" font-weight="900" fill="#fff">${p}</text>
+          <ellipse class="ringdrop" cx="${x}" cy="126" rx="20" ry="7" fill="none" stroke="#e85345" stroke-width="5" style="opacity:0;transform:translateY(-90px);transition:transform .5s cubic-bezier(.3,1.4,.6,1),opacity .2s"/>
+        </g>`).join('')}
+    </svg>`;
+  }
+
+  if(st.id==='strike'){
+    let next=1;
+    window._panel=(el,n)=>{
+      if(n===next){
+        el.style.visibility='hidden'; sCrash(); next++;
+        setMsg(next<=3?`やった！つぎは <b style="color:var(--lantern)">${next}</b> のパネル！`:'1・2・3 ぜんぶあてた！すごい！');
+        if(next>3) gameDone();
+      }else{
+        sBuzz(); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+        setMsg(`ちがうよ〜 <b style="color:var(--lantern)">${next}</b> の すうじを さがして！`);
+      }
+    };
+    setMsg('ボールを <b style="color:var(--lantern)">1 → 2 → 3</b> の じゅんばんに あてよう！');
+    area.innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,minmax(70px,110px));gap:8px;">
+      ${[1,2,3,4,5,6,7,8,9].map(n=>
+        `<button class="btn" style="aspect-ratio:1;font-size:34px;background:${n%2?'#fff':'#ffe9a8'};color:#8a5a2a;border-radius:14px;" onclick="_panel(this,${n})">${n}</button>`).join('')}
+    </div>`;
+  }
+
+  if(st.id==='bowling'){
+    const HON=['1ぽん','2ほん','3ぼん','4ほん','5ほん','6ぽん'];
+    window._roll=(ball)=>{
+      if(ball.dataset.done)return; ball.dataset.done=1;
+      ball.style.transform='translateY(-160px)';
+      setTimeout(()=>{
+        sCrash();
+        document.querySelectorAll('.bpin').forEach((p,i)=>setTimeout(()=>{p.classList.add('fall'); tone(300-i*20,.15,0,'square',.08);},i*130));
+        let i=0;
+        const iv=setInterval(()=>{
+          setMsg(`${HON[i]} たおれた！`);
+          i++;
+          if(i>=6){ clearInterval(iv); setMsg('ぜんぶで 6ぽん！ ストライク〜！🎉'); sYay(); gameDone(); }
+        },400);
+      },550);
+    };
+    setMsg('ボールを タッチして ころがそう！');
+    area.innerHTML=`<div style="position:relative;width:min(80%,320px);height:min(52vh,340px);background:linear-gradient(#c9a06a,#a87c48);border-radius:16px;border:6px solid #8a5a2a;display:flex;justify-content:center;">
+      <div style="position:absolute;top:14px;display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div style="display:flex;gap:18px;">${[0,1,2].map(()=>pinHTML()).join('')}</div>
+        <div style="display:flex;gap:18px;">${[0,1].map(()=>pinHTML()).join('')}</div>
+        <div>${pinHTML()}</div>
+      </div>
+      <div style="position:absolute;bottom:14px;cursor:pointer;transition:transform .55s ease-in;" onclick="_roll(this)">
+        <svg width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="25" fill="#4a7fd4"/><circle cx="21" cy="20" r="3" fill="#1b2a5e"/><circle cx="31" cy="17" r="3" fill="#1b2a5e"/><circle cx="30" cy="26" r="3" fill="#1b2a5e"/><ellipse cx="20" cy="18" rx="8" ry="5" fill="#fff" opacity=".25"/></svg>
+      </div>
+    </div>`;
+  }
+
+  if(st.id==='katanuki'){
+    const pts=[[110,28],[132,70],[178,76],[144,108],[152,152],[110,128],[68,152],[76,108],[42,76],[88,70]];
+    let left=5;
+    const dotIdx=[0,2,4,6,8];
+    window._dot=(el)=>{
+      if(el.dataset.done)return; el.dataset.done=1;
+      el.setAttribute('fill','#f5c542'); tone(700+left*80,.1); left--;
+      setMsg(left>0?`いいちょうし！あと ${left}かしょ`:'');
+      if(left===0){
+        sYay(); setMsg('パキッ！きれいに ぬけた〜！⭐');
+        const star=document.getElementById('kata-star');
+        star.style.transition='transform .6s'; star.style.transform='scale(1.25) rotate(15deg)';
+        star.setAttribute('fill','#ffe27a');
+        gameDone();
+      }
+    };
+    setMsg('てんせんの ○を ぜんぶ そーっとタッチ！');
+    area.innerHTML=`<svg width="min(70%,300px)" viewBox="0 0 220 190">
+      <rect x="8" y="8" width="204" height="174" rx="14" fill="#ffb0c9"/>
+      <path id="kata-star" d="${'M'+pts.map(p=>p.join(' ')).join(' L ')} z" fill="#ffc9da" stroke="#fff" stroke-width="2" stroke-dasharray="5 5" style="transform-origin:110px 95px"/>
+      ${dotIdx.map(i=>`<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="11" fill="#fff" stroke="#ff7bac" stroke-width="3" style="cursor:pointer" onclick="_dot(this)"/>`).join('')}
+    </svg>`;
+  }
+
+  if(st.id==='kuji'){
+    window._kuji=(el)=>{
+      document.querySelectorAll('.kujistr').forEach(k=>k.style.pointerEvents='none');
+      el.style.stroke='#f5c542';
+      [440,494,554,587,659].forEach((f,i)=>tone(f,.12,i*.12,'triangle'));
+      setTimeout(()=>{
+        const r=Math.random();
+        const prize= r<.15?['🧸 とくべつしょう！おおきなくま！','くまのぬいぐるみ']
+                   : r<.5?['🚗 2とう！ミニカー！','ミニカー']
+                   : ['🍬 3とう！キャンディ3こ！','キャンディ'];
+        S.currentStall=Object.assign({},S.currentStall,{itemName:prize[1]});
+        sYay(); setMsg(prize[0]); gameDone();
+      },800);
+    };
+    setMsg('すきな ひもを 1ぽん えらんで タッチ！');
+    area.innerHTML=`<svg width="min(80%,340px)" viewBox="0 0 280 180">
+      <rect x="60" y="14" width="160" height="56" rx="8" fill="#e85345"/>
+      <text x="140" y="50" text-anchor="middle" font-size="26" font-weight="900" fill="#fff">くじびき</text>
+      ${[85,125,165,205].map((x,i)=>`<path class="kujistr" d="M${x} 70 q${(i%2?12:-12)} 40 0 90" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" style="cursor:pointer" onclick="_kuji(this)"/>`).join('')}
+    </svg>`;
+  }
+
+  if(st.id==='obake'){
+    document.getElementById('scr-game').classList.add('spooky');
+    sSpooky();
+    let round=0; const total=3;
+    function newRound(){
+      round++;
+      const pool=[...HIRAGANA].sort(()=>Math.random()-.5);
+      const target=pool[0], others=[pool[1],pool[2]];
+      const opts=[target,...others].sort(()=>Math.random()-.5);
+      setMsg(`「<b style="color:var(--lantern);font-size:1.5em">${target}</b>」の おばけを タッチして やっつけろ！ (${round}/${total})`);
+      window._ghost=(el,ch)=>{
+        if(ch===target){
+          el.style.transition='transform .5s,opacity .5s';
+          el.style.transform='scale(0) rotate(360deg)'; el.style.opacity=0;
+          sYay();
+          if(round<total){ setTimeout(newRound,700); }
+          else{ setMsg('ぜんぶ やっつけた！ ひらがなはかせ！👻✨'); gameDone(); }
+        }else{
+          sBuzz(); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+          setMsg(`それは「${ch}」だよ〜！「<b style="color:var(--lantern);font-size:1.5em">${target}</b>」を さがして！ (${round}/${total})`);
+        }
+      };
+      document.getElementById('ghost-row').innerHTML=opts.map((ch,i)=>
+        `<div class="ghostfloat" style="animation-delay:${i*.5}s;cursor:pointer" onclick="_ghost(this,'${ch}')">
+          <svg width="min(26vw,110px)" height="auto" viewBox="0 0 80 96">
+            <path d="M12 40 a28 28 0 0 1 56 0 v44 l-9 -8 -9.5 8 -9.5 -8 -9.5 8 -9.5 -8 -9 8 z" fill="#fff" opacity=".96"/>
+            <circle cx="30" cy="36" r="4.5" fill="#3a2c26"/><circle cx="50" cy="36" r="4.5" fill="#3a2c26"/>
+            <ellipse cx="40" cy="48" rx="5" ry="6" fill="#3a2c26"/>
+            <text x="40" y="78" text-anchor="middle" font-size="24" font-weight="900" fill="#7a5ad4">${ch}</text>
+          </svg>
+        </div>`).join('');
+    }
+    area.innerHTML=`<div id="ghost-row" style="display:flex;gap:14px;justify-content:center;align-items:center;flex-wrap:wrap;"></div>`;
+    newRound();
+  }
+
+  if(st.id==='ringo'){
+    setMsg('りんごあめを タッチして たべてみよう！');
+    let bites=0;
+    window._ringoTap=(el)=>{
+      bites++; sTap();
+      if(bites===1) el.querySelector('#bite1').style.display='block';
+      if(bites===2){ el.querySelector('#bite2').style.display='block'; setMsg('あまくて おいしい！😋'); gameDone(); }
+    };
+    area.innerHTML=`<svg width="150" height="220" viewBox="0 0 170 240" onclick="_ringoTap(this)" style="cursor:pointer">
+      <rect x="81" y="110" width="8" height="120" rx="4" fill="#e8dcc0"/>
+      <circle cx="85" cy="75" r="52" fill="#d42a2a"/>
+      <circle cx="85" cy="75" r="52" fill="none" stroke="#ff8a7a" stroke-width="5" opacity=".6"/>
+      <circle cx="66" cy="56" r="13" fill="#fff" opacity=".55"/>
+      <circle id="bite1" cx="128" cy="52" r="18" fill="var(--night1)" style="display:none"/>
+      <circle id="bite2" cx="118" cy="95" r="18" fill="var(--night1)" style="display:none"/>
+    </svg>`;
+  }
+
+  if(st.id==='wata'){
+    let taps=0;
+    window._wataTap=()=>{
+      taps++; tone(400+taps*80,.1,0,'sine',.12);
+      const r=14+taps*8;
+      const c=document.getElementById('wata-cloud');
+      c.setAttribute('rx',r); c.setAttribute('ry',r*.82);
+      setMsg('くるくる… '+'🌀'.repeat(Math.min(taps,6)));
+      if(taps>=6){ setMsg('おおきい わたあめ！ もぐもぐ…おいしい！'); gameDone(); }
+    };
+    setMsg('ぼうを タッチして くるくる まこう！');
+    area.innerHTML=`<svg width="200" height="230" viewBox="0 0 220 240" onclick="_wataTap()" style="cursor:pointer">
+      <ellipse cx="110" cy="200" rx="85" ry="26" fill="#c9cdd4"/>
+      <ellipse cx="110" cy="192" rx="85" ry="26" fill="#e6e9ee"/>
+      <rect x="106" y="60" width="8" height="130" rx="4" fill="#fff" stroke="#ddd"/>
+      <ellipse id="wata-cloud" cx="110" cy="80" rx="14" ry="12" fill="#ffd6ec"/>
+    </svg>`;
+  }
+
+  if(st.id==='banana'){
+    let step=0;
+    window._bstep=(what)=>{
+      if(what==='choco'&&step===0){
+        step=1; sTap();
+        document.getElementById('b-choco').style.opacity=1;
+        setMsg('チョコに どぼん！つぎは カラースプレーを タッチ！');
+      }else if(what==='spr'&&step===1){
+        step=2; sYay();
+        document.getElementById('b-spr').style.opacity=1;
+        setMsg('かんせい！バナナを タッチして たべよう！');
+      }else if(what==='ban'&&step===2){
+        step=3; sTap();
+        document.getElementById('b-bite').style.display='block';
+        setMsg('あまーい！チョコバナナ さいこう！😋'); gameDone();
+      }
+    };
+    setMsg('まず チョコのおなべを タッチ！');
+    area.innerHTML=`<svg width="min(88%,380px)" viewBox="0 0 320 210">
+      <g style="cursor:pointer" onclick="_bstep('ban')">
+        <rect x="76" y="120" width="8" height="80" rx="4" fill="#e8dcc0"/>
+        <path d="M80 20 q34 4 34 54 q0 46 -34 50 q-34 -4 -34 -50 q0 -50 34 -54 z" fill="#f5c542"/>
+        <path d="M46 74 q0 -50 34 -54 q34 4 34 54 q0 20 -8 33 q8 -60 -26 -64 q-34 4 -26 64 q-8 -13 -8 -33 z" fill="#e8b02a" opacity=".5"/>
+        <path id="b-choco" d="M46 72 q0 -48 34 -52 q34 4 34 52 l-2 14 q-32 12 -64 0 z" fill="#6a3a1a" style="opacity:0;transition:opacity .4s"/>
+        <g id="b-spr" style="opacity:0;transition:opacity .4s">
+          ${[[62,44,'#ff5a7a'],[84,34,'#3aa4dd'],[98,52,'#57b98b'],[70,62,'#f5c542'],[92,70,'#ff5a7a'],[60,76,'#3aa4dd']].map(([x,y,c])=>`<rect x="${x}" y="${y}" width="9" height="4" rx="2" fill="${c}" transform="rotate(${(x*7)%360} ${x} ${y})"/>`).join('')}
+        </g>
+        <circle id="b-bite" cx="106" cy="40" r="16" fill="var(--night1)" style="display:none"/>
+      </g>
+      <g style="cursor:pointer" onclick="_bstep('choco')">
+        <path d="M180 120 a34 26 0 0 0 68 0 z" fill="#8a5a2a"/>
+        <ellipse cx="214" cy="120" rx="34" ry="10" fill="#6a3a1a"/>
+        <text x="214" y="164" text-anchor="middle" font-size="13" font-weight="900" fill="#fff6e8">チョコ</text>
+      </g>
+      <g style="cursor:pointer" onclick="_bstep('spr')">
+        <rect x="272" y="96" width="34" height="46" rx="8" fill="#fff" stroke="#ddd"/>
+        ${[[280,108,'#ff5a7a'],[292,104,'#3aa4dd'],[286,118,'#57b98b'],[296,126,'#f5c542'],[280,128,'#8a5ad4']].map(([x,y,c])=>`<rect x="${x}" y="${y}" width="8" height="3.5" rx="1.7" fill="${c}" transform="rotate(${(y*13)%360} ${x} ${y})"/>`).join('')}
+        <text x="289" y="158" text-anchor="middle" font-size="12" font-weight="900" fill="#fff6e8">スプレー</text>
+      </g>
+    </svg>`;
+  }
+
+  if(st.id==='corn'){
+    let brush=0;
+    window._corn=(el)=>{
+      if(brush<4){
+        brush++; sTap();
+        el.querySelector('#corn-body').setAttribute('fill',['#f5c542','#f0b83a','#e8a032','#dd8f2a','#d07f22'][brush]);
+        setMsg(brush<4?`ハケで たれを ぬりぬり… (${brush}/4)`:'いいにおい〜！タッチして がぶり！');
+      }else{
+        el.querySelector('#corn-bite').style.display='block'; sYay();
+        setMsg('あつあつ あまじょっぱい！おいしい〜！🌽'); gameDone();
+      }
+    };
+    setMsg('とうもろこしを タッチして たれを ぬろう！');
+    area.innerHTML=`<svg width="min(80%,340px)" viewBox="0 0 300 170" style="cursor:pointer" onclick="_corn(this)">
+      <rect x="30" y="120" width="240" height="20" rx="6" fill="#5a4232"/>
+      <rect x="40" y="112" width="220" height="10" rx="4" fill="#3a2c26"/>
+      <path d="M64 128 q6 -18 2 -30 M110 128 q6 -18 2 -30 M170 128 q6 -18 2 -30 M225 128 q6 -18 2 -30" stroke="#c9cdd4" stroke-width="3" fill="none" opacity=".6"/>
+      <ellipse id="corn-body" cx="150" cy="86" rx="80" ry="26" fill="#f5c542"/>
+      <path d="M80 80 h140 M80 92 h140 M96 66 q54 -8 108 0 M96 106 q54 8 108 0" stroke="#00000022" stroke-width="2" fill="none"/>
+      <path d="M100 70 v32 M130 64 v44 M160 64 v44 M190 66 v40" stroke="#00000018" stroke-width="2"/>
+      <rect x="62" y="82" width="14" height="8" rx="3" fill="#c9862c" transform="rotate(-20 69 86)"/>
+      <circle id="corn-bite" cx="212" cy="76" r="17" fill="var(--night1)" style="display:none"/>
+    </svg>`;
+  }
+
+  if(st.id==='kakigori'){
+    let syr=null, bites=0;
+    window._syr=(c,name)=>{
+      if(syr)return; syr=c; sYay();
+      const s=document.getElementById('kg-syrup');
+      s.setAttribute('fill',c); s.style.opacity=.85;
+      setMsg(`${name}シロップ とろ〜り！タッチして たべよう！`);
+    };
+    window._eat=(el)=>{
+      if(!syr)return;
+      bites++; sTap();
+      el.querySelector('#kg-b'+bites)?.style.setProperty('display','block');
+      if(bites>=2){ setMsg('つめた〜い！あたま キーン！でも おいしい！🍧'); gameDone(); }
+    };
+    setMsg('すきな シロップを えらんで タッチ！');
+    area.innerHTML=`
+      <svg width="min(60%,240px)" viewBox="0 0 180 190" onclick="_eat(this)" style="cursor:pointer">
+        <path d="M40 92 h100 l-14 60 q-36 10 -72 0 z" fill="#7fd4ff"/>
+        <path d="M36 92 a54 44 0 0 1 108 0 z" fill="#fff"/>
+        <path id="kg-syrup" d="M52 66 a42 30 0 0 1 76 0 l-8 20 h-60 z" fill="#ff5a7a" style="opacity:0;transition:opacity .5s"/>
+        <circle id="kg-b1" cx="66" cy="66" r="13" fill="var(--night2)" style="display:none"/>
+        <circle id="kg-b2" cx="112" cy="60" r="13" fill="var(--night2)" style="display:none"/>
+        <rect x="132" y="30" width="3" height="34" fill="#8a5a2a"/><path d="M135 30 h26 v16 h-26 z" fill="#fff" stroke="#3aa4dd"/><text x="148" y="43" text-anchor="middle" font-size="11" font-weight="900" fill="#3aa4dd">氷</text>
+      </svg>
+      <div style="display:flex;gap:12px;">
+        ${[['#ff5a7a','いちご'],['#57b98b','メロン'],['#3aa4dd','ブルーハワイ'],['#f5c542','レモン']].map(([c,n])=>
+          `<button class="btn" style="background:${c};font-size:12px;padding:10px 12px;" onclick="_syr('${c}','${n}')">${n}</button>`).join('')}
+      </div>`;
+  }
+
+  if(st.id==='omen'){
+    window._pickMask=(k,name)=>{
+      S.mask=k; sYay();
+      setMsg(`「${name}」のおめん、にあってる〜！あたまに つけたよ！`);
+      document.getElementById('omen-avatar').innerHTML=avatarSVG('omen');
+      gameDone();
+    };
+    setMsg('すきな おめんを えらんでね！');
+    area.innerHTML=`
+      <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;">
+        ${[['kitsune','きつね'],['neko','ねこ'],['usagi','うさぎ'],['oni','おに']].map(([k,n])=>
+          `<div style="background:var(--paper);border-radius:18px;padding:10px 14px;cursor:pointer;text-align:center;box-shadow:0 3px 0 rgba(0,0,0,.2)" onclick="_pickMask('${k}','${n}')">
+            ${maskSVG(k,72)}<div style="font-weight:900;font-size:13px;">${n}</div>
+          </div>`).join('')}
+      </div>
+      <div id="omen-avatar" style="height:18vh;"></div>`;
+  }
+}
+function pinHTML(){
+  return `<svg class="bpin" width="30" height="52" viewBox="0 0 30 52" style="transform-origin:bottom center;transition:transform .5s,opacity .5s;">
+    <path d="M15 2 q7 8 1 19 q-3 9 5 16 q3 5 -6 13 q-9 -8 -6 -13 q8 -7 5 -16 q-6 -11 1 -19 z" fill="#fff" stroke="#ddd"/>
+    <rect x="7" y="14" width="16" height="4" rx="2" fill="#e85345"/>
+  </svg>`;
+}
+function winSimple(el,msg){
+  el.classList.remove('bob');
+  el.style.pointerEvents='none'; el.style.transform='scale(1.3)';
+  sYay(); setMsg(msg); gameDone();
+}
+function finishActivity(){
+  const st=S.currentStall;
+  if(st.type!=='food') S.bought[st.id]=true;
+  playJingle();
+  if(st.type==='food'){
+    changeHunger(st.feed);
+    S.items.push({id:st.id, itemName:st.name});
+    advanceTime(10);
+    if(S.time>=HARD) return;
+    toast(`おなかが みたされた〜！<br>🍴 +${st.feed}`,()=>{ if(!S.ended) showScreen('scr-map'); });
+  }else if(st.type==='goods'){
+    S.items.push({id:'omen', itemName:'おめん'});
+    advanceTime(10);
+    if(S.time>=HARD) return;
+    toast('おめん ゲット！',()=>{ if(!S.ended) showScreen('scr-map'); });
+  }else{
+    changeHunger(-20);
+    S.items.push({id:st.id, itemName:st.itemName});
+    advanceTime(20);
+    if(S.time>=HARD) return;
+    const hungry=S.hunger<30?'<br><small>おなかが すいてきた…🍌</small>':'';
+    toast(`${st.itemName} ゲット！${hungry}`,()=>{ if(!S.ended) showScreen('scr-map'); });
+  }
+}
+
+/* ================= おわり&はなび ================= */
+function goHome(forced){
+  if(S.ended)return;
+  S.ended=true;
+  showScreen('scr-end');
+  document.getElementById('statusbar').classList.add('show');
+  updateStatus();
+  const t=S.time;
+  let mood,text,title,doFw=true;
+  if(forced){
+    mood='angry'; doFw=false;
+    title='おかあさんが おむかえに…';
+    text=`「もう <b>7じはん</b>！！しんぱいしたんだから！💢💢<br>やくそくは <b>7じ</b> だったでしょ〜！」<br><small>…でも、たのしかったなら よかった(ぼそっ)</small>`;
+  }else if(t<110){
+    mood='happy';
+    title='たのしかったね！';
+    text=`「<b>${timeText()}</b> に かえってきたのね！<br>やくそくの 7じより <b style="color:var(--midori)">まえ</b> に かえれて えらい！💮<br>とけいが よめるなんて すごいね！」`;
+  }else if(t<PROMISE){
+    mood='happy';
+    title='ぎりぎりセーフ！';
+    text=`「<b>${timeText()}</b>！ぎりぎり セーフ〜！<br>つぎは もうすこし はやく かえろうね😊」`;
+  }else{
+    mood='angry'; doFw=false;
+    title='あ〜あ、おこられた…';
+    text=`「いま <b>${timeText()}</b> よ！やくそくは <b>7じ</b> でしょ！💢<br>とけいの あかいしるし、みてなかったな〜？」<br><small>ごめんなさいして、つぎは まもろうね</small>`;
+  }
+  document.getElementById('end-title').textContent=title;
+  document.getElementById('verdict').innerHTML=`<div>${momSVG(mood,80)}</div><div class="vtext">${text}</div>`;
+  const shelf=document.getElementById('item-shelf');
+  shelf.innerHTML=S.items.length
+    ? S.items.map(it=>`<div style="text-align:center">${itemIcon(it.id,50)}<div style="font-size:11px;font-weight:900">${it.itemName}</div></div>`).join('')
+    : '<span class="none">こんどは なにか かってみようね</span>';
+  document.getElementById('end-money').innerHTML=`のこったおかね <b>${walletTotal()}えん</b><br><small>また こんど つかおうね</small>`;
+  document.getElementById('end-avatar').innerHTML=avatarSVG('end');
+  if(doFw){ playJingle(); fireworks(document.getElementById('fireworks-canvas'),true); }
+  else sBuzz();
+}
+
+function fireworks(canvas,loop){
+  const ctx=canvas.getContext('2d');
+  const resize=()=>{canvas.width=canvas.offsetWidth||innerWidth;canvas.height=canvas.offsetHeight||innerHeight;};
+  resize(); window.addEventListener('resize',resize);
+  let parts=[];
+  const cols=['#ffd98a','#ff7bac','#7fd4ff','#a8f0c0','#ff8a5a'];
+  function burst(){
+    const x=canvas.width*(0.15+Math.random()*0.7), y=canvas.height*(0.1+Math.random()*0.4);
+    const c=cols[Math.floor(Math.random()*cols.length)];
+    for(let i=0;i<26;i++){
+      const a=(i/26)*Math.PI*2, sp=1.2+Math.random()*1.6;
+      parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,l:1,c});
+    }
+  }
+  function tick(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    parts.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy; p.vy+=.02; p.l-=.014;
+      ctx.globalAlpha=Math.max(p.l,0); ctx.fillStyle=p.c;
+      ctx.beginPath(); ctx.arc(p.x,p.y,2.4,0,7); ctx.fill();
+    });
+    ctx.globalAlpha=1;
+    parts=parts.filter(p=>p.l>0);
+    requestAnimationFrame(tick);
+  }
+  tick(); burst(); setTimeout(burst,500);
+  if(loop) setInterval(burst,1500);
+}
+fireworks(document.getElementById('title-fw'),true);
+</script>
+</body>
+</html>

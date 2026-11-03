@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>どうぶつ おさんぽ</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:"Hiragino Maru Gothic ProN","BIZ UDPGothic","Meiryo",sans-serif;
+    background:linear-gradient(#bfe8ff,#fff4fb 70%);
+    display:flex;flex-direction:column;align-items:center;gap:10px;padding:10px;
+    color:#6b4a3a;
+  }
+  /* ステージえらび */
+  #stages{display:flex;gap:8px}
+  .st{
+    position:relative;width:46px;height:46px;border-radius:50%;border:3px solid #e8a7b8;
+    background:#fff;font-size:22px;font-weight:bold;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;box-shadow:0 3px 0 #e8a7b8;color:#c56a85;
+  }
+  .st.now{background:#ffd6e2}
+  .st.clear::after{content:"★";position:absolute;top:-10px;right:-6px;font-size:18px;color:#ffb400;text-shadow:0 1px 0 #fff}
+  #who{display:flex;gap:10px}
+  .wb{width:64px;height:64px;border-radius:50%;border:3px solid #e8a7b8;background:#fff;padding:4px;cursor:pointer;box-shadow:0 3px 0 #e8a7b8;opacity:.55}
+  .wb.on{background:#ffd6e2;opacity:1;transform:scale(1.08)}
+  .wb svg{width:100%;height:100%}
+  /* ボード */
+  #board{
+    position:relative;display:grid;border:5px solid #fff;border-radius:18px;overflow:hidden;
+    box-shadow:0 5px 0 #e8a7b8,0 0 0 3px #e8a7b8;
+  }
+  .cell{width:var(--c);height:var(--c);position:relative}
+  .grass{background:#a8e08a}
+  .grass.alt{background:#9ed97f}
+  .road{background:#f6dfb0}
+  .road::after{content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 30% 35%,#ecd09a 0 3px,transparent 4px),radial-gradient(circle at 70% 70%,#ecd09a 0 2px,transparent 3px)}
+  .deco{position:absolute;inset:12%}
+  #player .face{transform-box:view-box}
+  .deco svg,.goal svg,#player svg{width:100%;height:100%;display:block}
+  .goal{position:absolute;inset:6%;animation:sway 2s ease-in-out infinite}
+  @keyframes sway{50%{transform:rotate(6deg) scale(1.05)}}
+  /* あしあと */
+  .step{
+    position:absolute;width:calc(var(--c)*.42);height:calc(var(--c)*.42);border-radius:50%;
+    background:rgba(255,255,255,.85);border:3px solid #ff8fb1;color:#ff6f9c;
+    display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:calc(var(--c)*.22);
+    pointer-events:none;z-index:1;
+  }
+  .step.bad{border-color:#ff4b4b;color:#ff4b4b;background:rgba(255,230,230,.9);font-size:calc(var(--c)*.3)}
+  #player{
+    position:absolute;left:0;top:0;width:var(--c);height:var(--c);
+    transition:transform .35s ease;z-index:2;padding:calc(var(--c) * .04);
+    filter:drop-shadow(0 4px 2px rgba(0,0,0,.18));
+  }
+  #player .face{transition:transform .2s;transform-origin:50% 50%}
+  #player.left .face{transform:scaleX(-1)}
+  #player.shake{animation:shake .4s}
+  @keyframes shake{25%{margin-left:-6px}75%{margin-left:6px}}
+  #player.jump{animation:jump .5s 3}
+  @keyframes jump{50%{margin-top:-16px}}
+  .tail{transform-origin:22px 82px;transform-box:view-box;animation:wag 1.2s ease-in-out infinite}
+  @keyframes wag{50%{transform:rotate(-12deg)}}
+  .eye{animation:blink 4s infinite;transform-origin:center;transform-box:fill-box}
+  @keyframes blink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+  /* プログラムのらん */
+  #progwrap{
+    background:#fff;border:3px solid #e8a7b8;border-radius:16px;padding:8px;
+    width:min(96vw,660px);min-height:76px;box-shadow:0 4px 0 #e8a7b8;
+  }
+  #prog{display:flex;flex-wrap:wrap;gap:6px;min-height:56px;align-items:center}
+  #prog .empty{color:#d8a9b6;font-size:18px;padding-left:6px}
+  .card{
+    width:52px;height:52px;border-radius:14px;border:3px solid #fff;
+    display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:bold;color:#fff;
+    box-shadow:0 3px 0 rgba(0,0,0,.18);cursor:pointer;transition:transform .15s;position:relative;
+  }
+  .card .no{position:absolute;top:-6px;left:-6px;width:20px;height:20px;border-radius:50%;
+    background:#fff;color:#ff6f9c;font-size:13px;display:flex;align-items:center;justify-content:center;border:2px solid #ff8fb1}
+  .card.now{transform:scale(1.18);outline:4px solid #ffd84a}
+  .card.done{opacity:.45}
+  .U{background:#6aa8ff}.D{background:#b48cf0}.L{background:#5cc98a}.R{background:#ffa85c}
+  /* ボタン */
+  #pad,#pad2{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .btn{
+    width:72px;height:72px;border-radius:20px;border:4px solid #fff;font-size:40px;font-weight:bold;
+    color:#fff;box-shadow:0 5px 0 rgba(0,0,0,.18);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .btn:active,.card:active,.st:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+  .sub{background:#fff;color:#c56a85;font-size:30px;border-color:#e8a7b8}
+  #go{background:#ff6f9c;width:150px;font-size:32px}
+  .off{opacity:.4;pointer-events:none}
+  /* メッセージ */
+  #msg{position:fixed;inset:0;background:rgba(80,40,60,.3);display:none;align-items:center;justify-content:center;z-index:9}
+  #msg.show{display:flex}
+  #msgbox{
+    background:#fff;border:4px solid #e8a7b8;border-radius:26px;padding:22px 28px;text-align:center;
+    box-shadow:0 8px 0 #e8a7b8;max-width:88vw;
+  }
+  #msgface{width:110px;height:110px;margin:0 auto 6px}
+  #msgtext{font-size:30px;font-weight:bold;margin-bottom:16px}
+  #msgbtn{background:#ff6f9c;width:auto;padding:0 28px;font-size:28px;margin:auto}
+  .conf{position:fixed;top:-20px;width:12px;height:12px;border-radius:3px;z-index:10;animation:fall 1.8s linear forwards}
+  @keyframes fall{to{transform:translateY(105vh) rotate(540deg)}}
+</style>
+</head>
+<body>
+
+<div id="who"></div>
+<div id="stages"></div>
+<div id="board"></div>
+
+<div id="progwrap"><div id="prog"></div></div>
+
+<div id="pad">
+  <div class="btn L" data-d="L">←</div>
+  <div class="btn U" data-d="U">↑</div>
+  <div class="btn D" data-d="D">↓</div>
+  <div class="btn R" data-d="R">→</div>
+</div>
+<div id="pad2">
+  <div class="btn sub" id="undo" title="ひとつけす">↩</div>
+  <div class="btn sub" id="clear" title="ぜんぶけす">🗑</div>
+  <div class="btn" id="go">▶ GO</div>
+</div>
+
+<div id="msg"><div id="msgbox"><div id="msgface"></div><div id="msgtext"></div><div class="btn" id="msgbtn"></div></div></div>
+
+<script>
+/* ===== ステージ（S=スタート G=おはな ==みち .=くさむら） ===== */
+const STAGES = [
+  [".......",
+   ".......",
+   "S===G..",
+   ".......",
+   "......."],
+  [".......",
+   "..G....",
+   "..=....",
+   "..===S.",
+   "......."],
+  [".......",
+   ".=====.",
+   ".=...=.",
+   ".S...G.",
+   "......."],
+  [".G==...",
+   "...=...",
+   "S====..",
+   "....=..",
+   "....==."],
+  ["==G....",
+   "=...===",
+   "===.=.=",
+   "..===.=",
+   "S==...="],
+];
+const MAX = 14;
+
+/* ===== え ===== */
+/* どうぶつ：ねこ・うさぎ・きつね */
+const ANIMALS = {
+  cat:  {name:"ころにゃん", body:"#ffe3bd", line:"#c98a5e", nose:"#ff8fa8"},
+  bunny:{name:"ぴょこ",     body:"#fffaf6", line:"#c9a0a8", nose:"#ff8fa8"},
+  fox:  {name:"こんた",     body:"#ffb466", line:"#c26a2a", nose:"#5a3a2a"},
+};
+let who = "cat";
+try{ who = localStorage.getItem("osanpo-who") || "cat"; }catch(e){}
+if(!ANIMALS[who]) who="cat";
+
+function charSVG(mood="normal", kind=who){
+  const A = ANIMALS[kind], B=A.body, L=A.line;
+  const mouth = mood==="sad"
+    ? `<path d="M44 74 Q50 69 56 74" stroke="#6b4a3a" stroke-width="2.5" fill="none" stroke-linecap="round"/>`
+    : mood==="happy"
+    ? `<path d="M42 70 Q50 82 58 70 Z" fill="#ff7f9e" stroke="#6b4a3a" stroke-width="2.5" stroke-linejoin="round"/>`
+    : `<path d="M42 70 Q46 75 50 70 Q54 75 58 70" stroke="#6b4a3a" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
+  const eyes = mood==="happy"
+    ? `<path d="M30 56 Q36 48 42 56" stroke="#4a3328" stroke-width="4" fill="none" stroke-linecap="round"/>
+       <path d="M58 56 Q64 48 70 56" stroke="#4a3328" stroke-width="4" fill="none" stroke-linecap="round"/>`
+    : `<g class="eye"><ellipse cx="36" cy="56" rx="6.5" ry="8.5" fill="#4a3328"/><circle cx="38.5" cy="52.5" r="2.6" fill="#fff"/><circle cx="34" cy="59" r="1.2" fill="#fff"/></g>
+       <g class="eye"><ellipse cx="64" cy="56" rx="6.5" ry="8.5" fill="#4a3328"/><circle cx="66.5" cy="52.5" r="2.6" fill="#fff"/><circle cx="62" cy="59" r="1.2" fill="#fff"/></g>`;
+  let tail="", ears="", extra="";
+  if(kind==="cat"){
+    tail = `<path d="M24 86 Q-2 86 3 54 Q5 30 15 26" stroke="${L}" stroke-width="13" fill="none" stroke-linecap="round"/>
+      <path d="M24 86 Q-2 86 3 54 Q5 30 15 26" stroke="${B}" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <path d="M3 60 L10 60 M4 46 L10 48" stroke="#f0b98a" stroke-width="3" stroke-linecap="round"/>`;
+    ears = `<path d="M18 40 L22 10 L44 28 Z" fill="${B}" stroke="${L}" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M82 40 L78 10 L56 28 Z" fill="${B}" stroke="${L}" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M24 30 L25 18 L35 27 Z" fill="#ffb3c4"/><path d="M76 30 L75 18 L65 27 Z" fill="#ffb3c4"/>`;
+    extra = `<path d="M42 26 Q50 22 58 26 M45 32 Q50 29 55 32" stroke="#f0b98a" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+  }else if(kind==="bunny"){
+    tail = `<circle cx="11" cy="76" r="11" fill="${B}" stroke="${L}" stroke-width="3"/>`;
+    ears = `<ellipse cx="35" cy="20" rx="9" ry="21" fill="${B}" stroke="${L}" stroke-width="3" transform="rotate(-10 35 20)"/>
+      <ellipse cx="65" cy="20" rx="9" ry="21" fill="${B}" stroke="${L}" stroke-width="3" transform="rotate(10 65 20)"/>
+      <ellipse cx="35" cy="22" rx="4.5" ry="15" fill="#ffc2d1" transform="rotate(-10 35 22)"/>
+      <ellipse cx="65" cy="22" rx="4.5" ry="15" fill="#ffc2d1" transform="rotate(10 65 22)"/>`;
+  }else{ // fox
+    tail = `<path d="M26 86 Q-4 90 6 52" stroke="${L}" stroke-width="24" fill="none" stroke-linecap="round"/>
+      <path d="M26 86 Q-4 90 6 52" stroke="${B}" stroke-width="18" fill="none" stroke-linecap="round"/>
+      <circle cx="6" cy="50" r="9" fill="#fff6ea"/>`;
+    ears = `<path d="M14 44 L16 4 L46 28 Z" fill="${B}" stroke="${L}" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M86 44 L84 4 L54 28 Z" fill="${B}" stroke="${L}" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M17 14 L16 5 L24 11 Z M83 14 L84 5 L76 11 Z" fill="#7a4a2a"/>
+      <path d="M21 32 L21 16 L36 27 Z M79 32 L79 16 L64 27 Z" fill="#fff6ea"/>`;
+    extra = `<path d="M12 62 Q30 58 50 66 Q70 58 88 62 Q86 90 50 92 Q14 90 12 62 Z" fill="#fff6ea"/>`;
+  }
+  return `<svg viewBox="0 0 100 100"><g class="face">
+    <g class="tail">${tail}</g>
+    ${ears}
+    <ellipse cx="50" cy="58" rx="40" ry="34" fill="${B}" stroke="${L}" stroke-width="3"/>
+    ${extra}
+    <g transform="translate(3 0)">${eyes}</g>
+    <ellipse cx="24" cy="68" rx="7" ry="4.5" fill="#ffb3c4" opacity=".8"/>
+    <ellipse cx="76" cy="68" rx="7" ry="4.5" fill="#ffb3c4" opacity=".8"/>
+    <ellipse cx="50" cy="65" rx="3.2" ry="2.4" fill="${A.nose}"/>
+    ${mouth}
+    <ellipse cx="36" cy="91" rx="8" ry="5" fill="${B}" stroke="${L}" stroke-width="2.5"/>
+    <ellipse cx="64" cy="91" rx="8" ry="5" fill="${B}" stroke="${L}" stroke-width="2.5"/>
+  </g></svg>`;
+}
+const FLOWER = `<svg viewBox="0 0 100 100">
+  <path d="M50 55 Q48 78 50 96" stroke="#4caf50" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <ellipse cx="38" cy="82" rx="11" ry="6" fill="#66c46a" transform="rotate(-30 38 82)"/>
+  ${[0,72,144,216,288].map(a=>`<circle cx="${50+20*Math.cos((a-90)*Math.PI/180)}" cy="${38+20*Math.sin((a-90)*Math.PI/180)}" r="15" fill="#ff8fb1" stroke="#ff6f9c" stroke-width="2"/>`).join("")}
+  <circle cx="50" cy="38" r="12" fill="#ffe14a" stroke="#ffb400" stroke-width="2"/>
+  <circle cx="46" cy="35" r="2" fill="#a0522d"/><circle cx="54" cy="35" r="2" fill="#a0522d"/>
+  <path d="M45 41 Q50 45 55 41" stroke="#a0522d" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>`;
+const BUSH = `<svg viewBox="0 0 100 100">
+  <circle cx="35" cy="58" r="24" fill="#7cc95c"/><circle cx="65" cy="58" r="24" fill="#7cc95c"/><circle cx="50" cy="40" r="26" fill="#8ed46c"/>
+  <circle cx="40" cy="38" r="6" fill="#b6eb98"/></svg>`;
+const TULIP = `<svg viewBox="0 0 100 100">
+  <path d="M50 55 L50 92" stroke="#4caf50" stroke-width="5"/><path d="M34 34 L40 22 L50 32 L60 22 L66 34 Q66 58 50 58 Q34 58 34 34Z" fill="#ffd166" stroke="#f0a500" stroke-width="2"/></svg>`;
+const ARROW = {U:"↑",D:"↓",L:"←",R:"→"};
+const MOVE  = {U:[0,-1],D:[0,1],L:[-1,0],R:[1,0]};
+
+/* ===== おと ===== */
+let ac=null;
+function beep(f,d=.12,type="triangle",v=.12){
+  try{
+    ac = ac || new (window.AudioContext||window.webkitAudioContext)();
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.type=type;o.frequency.value=f;g.gain.value=v;
+    o.connect(g);g.connect(ac.destination);o.start();
+    g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);o.stop(ac.currentTime+d);
+  }catch(e){}
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ===== じょうたい ===== */
+let stage=0, map=[], start=[0,0], goal=[0,0], pos=[0,0], prog=[], running=false, C=60;
+let cleared = {};
+try{ cleared = JSON.parse(localStorage.getItem("osanpo")||"{}"); }catch(e){}
+function save(){ try{ localStorage.setItem("osanpo",JSON.stringify(cleared)); }catch(e){} }
+
+const $ = id => document.getElementById(id);
+const board=$("board"), progEl=$("prog");
+const walkable = (x,y) => y>=0 && y<map.length && x>=0 && x<map[0].length && map[y][x]!==".";
+
+function loadStage(n){
+  stage=n; map=STAGES[n].map(r=>[...r]); prog=[];
+  map.forEach((row,y)=>row.forEach((ch,x)=>{
+    if(ch==="S") start=[x,y];
+    if(ch==="G") goal=[x,y];
+  }));
+  drawStages(); drawBoard(); drawProg();
+}
+
+function drawWho(){
+  $("who").innerHTML="";
+  Object.keys(ANIMALS).forEach(k=>{
+    const d=document.createElement("div");
+    d.className="wb"+(k===who?" on":""); d.title=ANIMALS[k].name;
+    d.innerHTML=charSVG("normal",k);
+    d.onclick=()=>{ if(running) return; who=k; try{localStorage.setItem("osanpo-who",k);}catch(e){}
+      beep(880); drawWho(); const p=$("player"); if(p) p.innerHTML=charSVG(); };
+    $("who").appendChild(d);
+  });
+}
+function drawStages(){
+  $("stages").innerHTML="";
+  STAGES.forEach((_,i)=>{
+    const d=document.createElement("div");
+    d.className="st"+(i===stage?" now":"")+(cleared[i]?" clear":"");
+    d.textContent=i+1;
+    d.onclick=()=>{ if(!running){ beep(660); loadStage(i);} };
+    $("stages").appendChild(d);
+  });
+}
+
+function sizeBoard(){
+  const cols=map[0].length, rows=map.length;
+  C = Math.floor(Math.min((innerWidth-34)/cols, (innerHeight*0.42)/rows, 84));
+  document.documentElement.style.setProperty("--c", C+"px");
+  board.style.gridTemplateColumns=`repeat(${cols},${C}px)`;
+}
+
+function drawBoard(){
+  sizeBoard();
+  board.innerHTML="";
+  map.forEach((row,y)=>row.forEach((ch,x)=>{
+    const c=document.createElement("div");
+    if(ch==="."){
+      c.className="cell grass"+((x+y)%2?" alt":"");
+      const r=(x*7+y*13+stage*5)%10;           // きまった ばしょに かざり
+      if(r<3) c.innerHTML=`<div class="deco">${BUSH}</div>`;
+      else if(r===4) c.innerHTML=`<div class="deco">${TULIP}</div>`;
+    }else{
+      c.className="cell road";
+      if(ch==="G") c.innerHTML=`<div class="goal">${FLOWER}</div>`;
+    }
+    board.appendChild(c);
+  }));
+  const p=document.createElement("div"); p.id="player"; p.innerHTML=charSVG();
+  board.appendChild(p);
+  setPos(start,false);
+  drawSteps();
+}
+
+function setPos(xy,anim=true){
+  pos=[...xy];
+  const p=$("player"); if(!p) return;
+  p.style.transition = anim ? "" : "none";
+  p.style.transform=`translate(${xy[0]*C}px,${xy[1]*C}px)`;
+  if(!anim){ p.offsetHeight; p.style.transition=""; }
+}
+
+/* ならべた カードの とおりみちを あしあとで みせる */
+function drawSteps(){
+  board.querySelectorAll(".step").forEach(e=>e.remove());
+  let [x,y]=start;
+  for(let i=0;i<prog.length;i++){
+    const [dx,dy]=MOVE[prog[i]]; x+=dx; y+=dy;
+    const s=document.createElement("div");
+    const ok = walkable(x,y);
+    s.className="step"+(ok?"":" bad");
+    s.textContent = ok ? i+1 : "×";
+    const cx = Math.max(0,Math.min(map[0].length-1,x)), cy=Math.max(0,Math.min(map.length-1,y));
+    s.style.left = (cx*C + C*.29)+"px"; s.style.top=(cy*C + C*.29)+"px";
+    board.appendChild(s);
+    if(!ok || (x===goal[0]&&y===goal[1])) break;
+  }
+}
+
+function drawProg(active=-1){
+  progEl.innerHTML="";
+  if(!prog.length){
+    progEl.innerHTML='<span class="empty">やじるしを ならべてね</span>';
+  }
+  prog.forEach((d,i)=>{
+    const c=document.createElement("div");
+    c.className="card "+d+(i===active?" now":"")+(active>=0&&i<active?" done":"");
+    c.innerHTML=ARROW[d]+`<span class="no">${i+1}</span>`;
+    c.onclick=()=>{ if(running) return; prog.splice(i,1); beep(300,.08); drawProg(); };
+    progEl.appendChild(c);
+  });
+  if(active<0 && !running) drawSteps();
+}
+
+/* ===== そうさ ===== */
+document.querySelectorAll("#pad .btn").forEach(b=>{
+  b.onclick=()=>{
+    if(running) return;
+    if(prog.length>=MAX){ beep(150,.2); return; }
+    const d=b.dataset.d; prog.push(d);
+    beep({U:784,D:587,L:659,R:880}[d]); drawProg();
+  };
+});
+$("undo").onclick=()=>{ if(running||!prog.length) return; prog.pop(); beep(300,.08); drawProg(); };
+$("clear").onclick=()=>{ if(running) return; prog=[]; beep(250,.15); drawProg(); };
+$("go").onclick=run;
+
+function lock(on){
+  running=on;
+  ["pad","pad2","stages","who"].forEach(id=>$(id).classList.toggle("off",on));
+}
+
+async function run(){
+  if(running) return;
+  if(!prog.length){ beep(150,.2); return; }
+  lock(true);
+  board.querySelectorAll(".step").forEach(e=>e.style.opacity=".35");
+  setPos(start,false);
+  await sleep(250);
+  const p=$("player");
+  for(let i=0;i<prog.length;i++){
+    drawProg(i);
+    const d=prog[i];
+    if(d==="L") p.classList.add("left"); if(d==="R") p.classList.remove("left");
+    const [dx,dy]=MOVE[d];
+    const nx=pos[0]+dx, ny=pos[1]+dy;
+    if(!walkable(nx,ny)){
+      p.style.transform=`translate(${(pos[0]+dx*.3)*C}px,${(pos[1]+dy*.3)*C}px)`;
+      beep(180,.3,"sine",.15);
+      await sleep(300);
+      setPos(pos); p.classList.add("shake"); p.innerHTML=charSVG("sad");
+      await sleep(450); p.classList.remove("shake");
+      return fail("あれれ？ みちから はみだしちゃう！");
+    }
+    setPos([nx,ny]); beep(600+i*40,.1);
+    await sleep(450);
+    if(nx===goal[0]&&ny===goal[1]){ return win(); }
+  }
+  p.innerHTML=charSVG("sad");
+  fail("もうすこし！ おはなまで いけるかな？");
+}
+
+function fail(text){
+  showMsg("sad",text,"もういっかい",()=>{
+    const p=$("player"); p.innerHTML=charSVG(); p.classList.remove("left");
+    setPos(start,false); drawProg(); lock(false);
+  });
+}
+
+async function win(){
+  drawProg(prog.length);
+  const p=$("player"); p.innerHTML=charSVG("happy"); p.classList.add("jump");
+  [784,988,1175,1568].forEach((f,i)=>setTimeout(()=>beep(f,.2),i*130));
+  confetti();
+  cleared[stage]=true; save(); drawStages();
+  await sleep(900);
+  const last = stage===STAGES.length-1;
+  showMsg("happy", last ? "ぜんぶ クリア！ すごーい！" : "やったね！ おはな みつけた！", last ? "さいしょから" : "つぎへ ▶", ()=>{
+    lock(false); loadStage(last?0:stage+1);
+  });
+}
+
+function showMsg(mood,text,btn,cb){
+  $("msgface").innerHTML=charSVG(mood);
+  $("msgtext").textContent=text; $("msgbtn").textContent=btn;
+  $("msg").classList.add("show");
+  $("msgbtn").onclick=()=>{ $("msg").classList.remove("show"); beep(660); cb(); };
+}
+
+function confetti(){
+  const cols=["#ff8fb1","#ffe14a","#6aa8ff","#5cc98a","#ffa85c","#b48cf0"];
+  for(let i=0;i<60;i++){
+    const d=document.createElement("div"); d.className="conf";
+    d.style.left=Math.random()*100+"vw";
+    d.style.background=cols[i%cols.length];
+    d.style.animationDelay=Math.random()*.6+"s";
+    document.body.appendChild(d); setTimeout(()=>d.remove(),2600);
+  }
+}
+
+addEventListener("resize",()=>{ if(!running){ drawBoard(); } });
+drawWho();
+loadStage(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>わんこの あそびば</title>
+<style>
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:28px 16px 40px;
+    font-family:"Hiragino Maru Gothic ProN","BIZ UDPGothic","Meiryo",sans-serif;
+    background:linear-gradient(#bfe8ff,#fff4fb 55%);min-height:100vh;color:#6b4a3a;
+  }
+  header{text-align:center;margin-bottom:26px}
+  h1{margin:0 0 6px;font-size:clamp(28px,7vw,40px);color:#c56a85;letter-spacing:.06em}
+  header p{margin:0;font-size:15px;opacity:.8}
+  h2{max-width:760px;margin:22px auto 10px;font-size:18px;color:#c56a85}
+  .grid{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+  a.card{
+    display:block;text-decoration:none;color:inherit;background:#fff;border:3px solid #f2c6d3;border-radius:20px;
+    padding:16px 16px 14px;box-shadow:0 5px 0 #f2c6d3;transition:transform .15s;
+  }
+  a.card:hover,a.card:focus-visible{transform:translateY(-3px);outline:none;border-color:#ff8fb1}
+  a.card:active{transform:translateY(3px);box-shadow:0 2px 0 #f2c6d3}
+  .icon{font-size:40px;line-height:1}
+  .name{font-size:20px;font-weight:bold;margin:8px 0 4px}
+  .desc{font-size:14px;line-height:1.6;opacity:.85}
+  .tag{display:inline-block;margin-top:8px;font-size:12px;padding:3px 10px;border-radius:999px;background:#ffe3ec;color:#c56a85}
+  footer{text-align:center;margin-top:34px;font-size:12px;opacity:.65}
+</style>
+</head>
+<body>
+<header>
+  <h1>わんこの あそびば</h1>
+  <p>AIといっしょに つくった、ちいさな ゲームたち</p>
+</header>
+
+<h2>🧒 こども むけ</h2>
+<div class="grid">
+  <a class="card" href="osanpo.html">
+    <div class="icon">🐱</div>
+    <div class="name">どうぶつ おさんぽ</div>
+    <div class="desc">やじるしカードを ならべて、おはなまで つれていこう。はじめての プログラミングあそび。</div>
+    <span class="tag">年長さん〜 ／ じゅんばんに かんがえる</span>
+  </a>
+  <a class="card" href="natsumatsuri.html">
+    <div class="icon">🏮</div>
+    <div class="name">なつまつりごっこ</div>
+    <div class="desc">おこづかいを もって おまつりへ。7じまでに かえってこられるかな？</div>
+    <span class="tag">年長さん〜 ／ とけいと おかね</span>
+  </a>
+</div>
+
+<h2>🎮 おとなも</h2>
+<div class="grid">
+  <a class="card" href="ninjin-catch.html">
+    <div class="icon">🥕</div>
+    <div class="name">バニーおじさんの人参キャッチ</div>
+    <div class="desc">30秒で人参をどれだけ受け取れるか。愛の渦とほいほいに気をつけて。</div>
+    <span class="tag">反射神経</span>
+  </a>
+  <a class="card" href="uchu-dive.html">
+    <div class="icon">🪐</div>
+    <div class="name">宇宙ダイブ</div>
+    <div class="desc">星雲と惑星のあいだを落ちていく。光る輪をくぐり続けよう。音ありがおすすめ。</div>
+    <span class="tag">3D ／ 指でなぞる</span>
+  </a>
+  <a class="card" href="tsuki-no-ike.html">
+    <div class="icon">🌕</div>
+    <div class="name">月の池</div>
+    <div class="desc">水面にふれて波紋を立て、浮かぶ花びらを月の輪へ。鯉もいます。</div>
+    <span class="tag">のんびり</span>
+  </a>
+</div>
+
+<footer>ゲームの中の記録は、つかっている端末の中だけに保存されます。</footer>
+</body>
+</html>
