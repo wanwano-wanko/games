@@ -207,14 +207,16 @@
     if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') input.right = false;
   });
 
+  // マウス・指は「押している場所に向かって動く」
+  let pointerHeld = false;
   function pointerDown(x) {
     if (state !== 'playing') return;
-    if (x < W / 2) { input.left = true; input.right = false; }
-    else { input.right = true; input.left = false; }
+    pointerHeld = true; input.target = x;
   }
-  function pointerUp() { input.left = false; input.right = false; }
+  function pointerUp() { pointerHeld = false; input.target = null; }
 
   canvas.addEventListener('pointerdown', (e) => pointerDown(e.clientX));
+  canvas.addEventListener('pointermove', (e) => { if (pointerHeld && state === 'playing') input.target = e.clientX; });
   canvas.addEventListener('pointerup', pointerUp);
   canvas.addEventListener('pointercancel', pointerUp);
   canvas.addEventListener('pointerleave', pointerUp);
@@ -304,8 +306,14 @@
     // player horizontal control
     const accel = 0.9;
     const maxV = 8.5;
-    if (input.left && !input.right) player.vx -= accel;
-    else if (input.right && !input.left) player.vx += accel;
+    let goL = input.left && !input.right, goR = input.right && !input.left;
+    if (!goL && !goR && input.target !== null) {
+      const d = input.target - player.x;
+      if (d < -6) goL = true; else if (d > 6) goR = true;
+      else player.vx *= 0.6;
+    }
+    if (goL) player.vx -= accel;
+    else if (goR) player.vx += accel;
     else player.vx *= 0.85;
     player.vx = Math.max(-maxV, Math.min(maxV, player.vx));
     player.x += player.vx;
