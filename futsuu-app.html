@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>とても普通のアプリ</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    font-family: "Segoe UI", "Yu Gothic UI", "Hiragino Sans", sans-serif;
+    background: linear-gradient(160deg, #dfe9f3 0%, #f5f7fa 100%);
+    user-select: none;
+  }
+
+  #stage { position: relative; width: 100%; height: 100%; }
+
+  .window {
+    position: absolute;
+    left: 50%; top: 46%;
+    transform: translate(-50%, -50%);
+    width: min(520px, 92vw);
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(30, 50, 90, .25);
+    overflow: hidden;
+  }
+
+  .titlebar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    background: linear-gradient(90deg, #4a6cf7, #6a8bff);
+    color: #fff;
+  }
+  .titlebar .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; } .dot.y { background: #febc2e; } .dot.g { background: #28c840; }
+  .titlebar .title { margin-left: 6px; font-size: 14px; font-weight: 600; }
+
+  .body { padding: 22px 24px 26px; }
+
+  h1 { font-size: 22px; color: #2b3a67; margin-bottom: 4px; }
+  h1 .ch { display: inline-block; cursor: pointer; }
+  .sub { font-size: 13px; color: #7a869a; margin-bottom: 18px; }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+
+  .btn {
+    padding: 9px 18px;
+    border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    background: #eef1f8; color: #2b3a67;
+    transition: transform .08s;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn.primary { background: #4a6cf7; color: #fff; }
+  .btn.danger  { background: #ff5f6d; color: #fff; }
+
+  .card {
+    background: #f6f8fc;
+    border: 1px solid #e3e9f4;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px; color: #4a5670;
+    margin-bottom: 14px;
+    cursor: pointer;
+  }
+
+  .field { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 13px; color: #4a5670; }
+  .field input[type="range"] { flex: 1; cursor: pointer; }
+  .field label { cursor: pointer; }
+
+  .badge {
+    display: inline-block;
+    background: #ffe08a; color: #7a5b00;
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* 落下中の要素 */
+  .falling {
+    position: fixed !important;
+    margin: 0 !important;
+    z-index: 999;
+    pointer-events: none;
+    left: 0; top: 0;
+    will-change: transform;
+    box-shadow: 0 6px 18px rgba(30, 50, 90, .3);
+  }
+
+  #hud {
+    position: fixed;
+    top: 14px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(43, 58, 103, .85);
+    color: #fff;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity .3s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  #hud.show { opacity: 1; }
+
+  #resetBtn {
+    position: fixed;
+    right: 18px; bottom: 18px;
+    z-index: 1001;
+    padding: 12px 20px;
+    border: none; border-radius: 999px;
+    background: #2b3a67; color: #fff;
+    font-size: 14px; font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(30, 50, 90, .35);
+    display: none;
+  }
+
+  body.quake .window { animation: quake .35s linear infinite; }
+  @keyframes quake {
+    0% { transform: translate(-50%, -50%) rotate(0); }
+    25% { transform: translate(calc(-50% + 3px), calc(-50% - 2px)) rotate(.4deg); }
+    50% { transform: translate(calc(-50% - 3px), calc(-50% + 2px)) rotate(-.4deg); }
+    75% { transform: translate(calc(-50% + 2px), calc(-50% + 3px)) rotate(.2deg); }
+    100% { transform: translate(-50%, -50%) rotate(0); }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="window" id="appWindow">
+    <div class="titlebar" data-fall>
+      <span class="dot r" data-fall></span>
+      <span class="dot y" data-fall></span>
+      <span class="dot g" data-fall></span>
+      <span class="title" data-fall>とても普通のアプリ v1.0</span>
+    </div>
+    <div class="body">
+      <h1 id="heading">ようこそ!</h1>
+      <p class="sub" data-fall>このアプリはとても安定しています。どこでも安心してクリックしてください。</p>
+
+      <div class="row">
+        <button class="btn primary" data-fall>保存する</button>
+        <button class="btn" data-fall>開く</button>
+        <button class="btn" data-fall>設定</button>
+        <button class="btn danger" id="doomBtn">絶対に押すな</button>
+      </div>
+
+      <div class="card" data-fall>
+        📄 重要なお知らせ: 本アプリの UI 部品は最新の重力対応フレームワークで実装されています。
+      </div>
+
+      <div class="field">
+        <label data-fall>音量</label>
+        <input type="range" min="0" max="100" value="70" data-fall>
+      </div>
+
+      <div class="field">
+        <input type="checkbox" id="chk" checked data-fall>
+        <label for="chk" data-fall>落ちない設定を有効にする</label>
+      </div>
+
+      <span class="badge" data-fall>★ 安定性 100%</span>
+    </div>
+  </div>
+</div>
+
+<div id="hud"></div>
+<button id="resetBtn">🔧 直す</button>
+
+<script>
+(() => {
+  const GRAVITY = 2600;      // px/s^2
+  const RESTITUTION = 0.45;  // 跳ね返り
+  const FRICTION = 0.82;     // 着地時の横摩擦
+  const hud = document.getElementById('hud');
+  const resetBtn = document.getElementById('resetBtn');
+  const doomBtn = document.getElementById('doomBtn');
+  const heading = document.getElementById('heading');
+
+  const bodies = [];   // 落下中の物体
+  let fallCount = 0;
+  let rafId = null;
+  let hudTimer = null;
+
+  const MESSAGES = [
+    'あっ',
+    'それは触っちゃダメなやつ',
+    'UIが…UIが落ちていく…',
+    '想定内です(想定外)',
+    '重力には勝てなかったよ…',
+    '大丈夫、まだ画面はある',
+    'このアプリはとても安定しています(していない)',
+    'そろそろ全部落ちますよ',
+  ];
+
+  function showHud(text) {
+    hud.textContent = text;
+    hud.classList.add('show');
+    clearTimeout(hudTimer);
+    hudTimer = setTimeout(() => hud.classList.remove('show'), 1800);
+  }
+
+  // 見出しは1文字ずつ落ちるように分解
+  function splitHeading() {
+    const text = heading.textContent;
+    heading.textContent = '';
+    for (const c of text) {
+      const s = document.createElement('span');
+      s.className = 'ch';
+      s.textContent = c === ' ' ? ' ' : c;
+      s.setAttribute('data-fall', '');
+      heading.appendChild(s);
+    }
+  }
+  splitHeading();
+
+  function makeFall(el, vx0, vy0) {
+    if (!el || el.dataset.fell) return;
+    el.dataset.fell = '1';
+
+    const r = el.getBoundingClientRect();
+    // 元の場所を占有しないよう placeholder で幅・高さを一瞬保つ…のはやめて、そのまま抜く(崩れる感じが出る)
+    el.classList.add('falling');
+    el.style.width = r.width + 'px';
+    el.style.height = r.height + 'px';
+    // 祖先に transform があると position:fixed がビューポート基準にならないため body 直下へ移す
+    document.body.appendChild(el);
+
+    const b = {
+      el,
+      x: r.left, y: r.top,
+      w: r.width, h: r.height,
+      vx: vx0 ?? (Math.random() - 0.5) * 400,
+      vy: vy0 ?? -Math.random() * 250,
+      angle: 0,
+      va: (Math.random() - 0.5) * 8, // rad/s
+      resting: false,
+    };
+    b.el.style.transform = `translate(${b.x}px, ${b.y}px)`;
+    bodies.push(b);
+
+    fallCount++;
+    if (fallCount === 1) showHud(MESSAGES[0]);
+    else if (fallCount % 3 === 0) showHud(MESSAGES[Math.floor(Math.random() * MESSAGES.length)]);
+
+    resetBtn.style.display = 'block';
+    if (!rafId) {
+      last = performance.now();
+      rafId = requestAnimationFrame(tick);
+    }
+  }
+
+  let last = 0;
+  function tick(now) {
+    const dt = Math.min((now - last) / 1000, 0.033);
+    last = now;
+
+    const floor = window.innerHeight;
+    const wallR = window.innerWidth;
+    let active = 0;
+
+    for (const b of bodies) {
+      if (b.resting) continue;
+
+      b.vy += GRAVITY * dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.angle += b.va * dt;
+
+      // 床(回転後のバウンディングボックスで判定)
+      const effH = Math.abs(b.w * Math.sin(b.angle)) + Math.abs(b.h * Math.cos(b.angle));
+      const sink = (effH - b.h) / 2; // 回転で中心からはみ出す分
+      if (b.y + b.h + sink > floor) {
+        b.y = floor - b.h - sink;
+        if (Math.abs(b.vy) < 60) {
+          b.vy = 0;
+          b.vx *= FRICTION;
+          b.va *= 0.8;
+          if (Math.abs(b.vx) < 8 && Math.abs(b.va) < 0.15) {
+            b.vx = 0; b.va = 0;
+            // 角度を少しだけ残して倒れた感を出す
+            b.resting = true;
+          }
+        } else {
+          b.vy = -b.vy * RESTITUTION;
+          b.vx *= 0.95;
+          b.va *= 0.9;
+        }
+      }
+      // 壁
+      if (b.x < 0) { b.x = 0; b.vx = -b.vx * RESTITUTION; }
+      if (b.x + b.w > wallR) { b.x = wallR - b.w; b.vx = -b.vx * RESTITUTION; }
+
+      b.el.style.transform = `translate(${b.x}px, ${b.y}px) rotate(${b.angle}rad)`;
+      active++;
+    }
+
+    if (active > 0) {
+      rafId = requestAnimationFrame(tick);
+    } else {
+      rafId = null;
+    }
+  }
+
+  // クリックで落とす
+  document.addEventListener('pointerdown', (e) => {
+    const t = e.target.closest('[data-fall]');
+    if (t && !t.dataset.fell) {
+      e.preventDefault();
+      makeFall(t);
+    }
+  });
+
+  // 「絶対に押すな」→ 全崩壊
+  doomBtn.addEventListener('click', () => {
+    showHud('だから押すなと言ったのに!!');
+    document.body.classList.add('quake');
+    const targets = [...document.querySelectorAll('[data-fall]')].filter(el => !el.dataset.fell);
+    // ランダムな順番で連鎖崩壊
+    targets.sort(() => Math.random() - 0.5);
+    targets.forEach((el, i) => {
+      setTimeout(() => makeFall(el, (Math.random() - 0.5) * 600, -Math.random() * 400), i * 90);
+    });
+    // 最後にウィンドウの枠ごと落とす
+    setTimeout(() => {
+      document.body.classList.remove('quake');
+      makeFall(doomBtn, 0, -500);
+      const win = document.getElementById('appWindow');
+      if (!win.dataset.fell) makeFall(win, (Math.random() - 0.5) * 200, -300);
+      showHud('完');
+    }, targets.length * 90 + 400);
+  });
+
+  // 直す
+  resetBtn.addEventListener('click', () => location.reload());
+
+  // ウィンドウリサイズで床の位置が変わっても resting を起こす
+  window.addEventListener('resize', () => {
+    for (const b of bodies) b.resting = false;
+    if (!rafId && bodies.length) { last = performance.now(); rafId = requestAnimationFrame(tick); }
+  });
+})();
+</script>
+</body>
+</html>
