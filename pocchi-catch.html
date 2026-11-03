@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>落ちるアプリ - ぽっちキャッチ</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#30363d;
+    --fg:#e6edf3; --sub:#8b949e; --accent:#58a6ff; --warn:#f85149;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--fg);
+    font-family:-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic UI",sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px; padding:12px; overflow:hidden;
+  }
+  #wrap{position:relative; line-height:0}
+  canvas{
+    display:block; height:min(80vh,720px); width:auto; max-width:100%;
+    border:1px solid var(--line); border-radius:12px; touch-action:none; cursor:none;
+    background:#0b1a2b;
+  }
+  .overlay{
+    position:absolute; inset:0; display:none; flex-direction:column;
+    align-items:center; justify-content:center; gap:14px;
+    border-radius:12px; text-align:center; padding:24px; line-height:1.6;
+  }
+  .overlay.show{display:flex}
+  #titleScreen,#overScreen{background:rgba(13,17,23,.9)}
+  #crashScreen{background:#0b3b8c; align-items:flex-start; justify-content:flex-start; text-align:left}
+  h1{font-size:26px; letter-spacing:.02em}
+  h2{font-size:20px}
+  p{font-size:13px; color:var(--sub)}
+  button{
+    font:inherit; font-size:14px; padding:10px 22px; border-radius:8px; cursor:pointer;
+    border:1px solid var(--accent); background:var(--accent); color:#08111f; font-weight:700;
+  }
+  button.ghost{background:transparent; color:var(--accent)}
+  button:active{transform:translateY(1px)}
+  .stats{font-size:14px; display:grid; grid-template-columns:auto auto; gap:4px 16px; text-align:left}
+  .stats b{font-variant-numeric:tabular-nums}
+  #crashScreen pre{
+    font-family:"Consolas","SF Mono",monospace; font-size:12px; color:#cfe1ff;
+    white-space:pre-wrap; line-height:1.7; text-align:left;
+  }
+  #crashScreen .big{font-size:52px; line-height:1; margin-bottom:8px}
+  #postBox{
+    width:100%; max-width:340px; height:96px; background:#0d1117; color:var(--fg);
+    border:1px solid var(--line); border-radius:8px; padding:8px; font:inherit; font-size:12px;
+    line-height:1.6; display:none; resize:none;
+  }
+  #hint{font-size:12px; color:var(--sub); text-align:center; line-height:1.7}
+</style>
+</head>
+<body>
+
+<div id="wrap">
+  <canvas id="game" width="480" height="720"></canvas>
+
+  <div id="titleScreen" class="overlay show">
+    <div style="font-size:44px">🐾</div>
+    <h1>落ちるアプリ</h1>
+    <p>おやつ🦴と星⭐をキャッチ。バグ🐛は避ける。<br>ミスは3回まで。……たまにアプリ自体も落ちる。</p>
+    <button id="startBtn">はじめる</button>
+    <p style="font-size:11px">マウス / 指でドラッグ、または ← →</p>
+  </div>
+
+  <div id="crashScreen" class="overlay">
+    <div class="big">:(</div>
+    <pre id="crashText"></pre>
+  </div>
+
+  <div id="overScreen" class="overlay">
+    <h2 id="overTitle">おわり</h2>
+    <div class="stats">
+      <span>スコア</span><b id="rScore">0</b>
+      <span>最大コンボ</span><b id="rCombo">0</b>
+      <span>キャッチ数</span><b id="rCatch">0</b>
+      <span>アプリが落ちた回数</span><b id="rCrash">0</b>
+      <span>プレイ時間</span><b id="rTime">0秒</b>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+      <button id="retryBtn">もう一回</button>
+      <button id="copyBtn" class="ghost">ポスト用テキスト</button>
+    </div>
+    <textarea id="postBox" readonly></textarea>
+  </div>
+</div>
+
+<div id="hint">スコア <b id="hScore">0</b> ／ 残り <b id="hLife">♥♥♥</b> ／ 落ちた回数 <b id="hCrash">0</b></div>
+
+<script>
+(() => {
+  'use strict';
+  const cv = document.getElementById('game');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+
+  const $ = id => document.getElementById(id);
+  const titleScreen = $('titleScreen'), crashScreen = $('crashScreen'), overScreen = $('overScreen');
+
+  // ---- 定数 ----
+  const GROUND = 640;
+  const MAX_LIFE = 5;
+  const ITEMS = [
+    { type:'bone',  w:58, emoji:'🦴', score:10, life:0,  color:'#ffd479' },
+    { type:'star',  w:34, emoji:'⭐', score:30, life:0,  color:'#ffe066' },
+    { type:'bug',   w:26, emoji:'🐛', score:-5, life:-1, color:'#f85149' },
+    { type:'heart', w:12, emoji:'💗', score:0,  life:1,  color:'#ff8fb1' }
+  ];
+  const TOTAL_W = ITEMS.reduce((s, i) => s + i.w, 0);
+
+  // ---- 状態 ----
+  let state = 'title';
+  let pocchi, items, particles, stars;
+  let score, life, combo, maxCombo, catches, crashes, elapsed;
+  let spawnTimer, crashTimer, invuln, shake;
+  let crashPhase = 0, crashClock = 0, crashMsg = '';
+  const keys = { left:false, right:false };
+
+  function reset() {
+    pocchi = { x: W/2, tx: W/2, wag: 0, blink: 0, face: 'normal', faceTimer: 0 };
+    items = []; particles = [];
+    stars = Array.from({ length: 40 }, () => ({
+      x: Math.random()*W, y: Math.random()*GROUND, r: Math.random()*1.4+.4, tw: Math.random()*6.28
+    }));
+    score = 0; life = 3; combo = 0; maxCombo = 0; catches = 0; crashes = 0; elapsed = 0;
+    spawnTimer = .6; crashTimer = 18 + Math.random()*14; invuln = 0; shake = 0;
+    crashPhase = 0; crashClock = 0;
+  }
+
+  const level = () => Math.min(9, Math.floor(score / 180) + 1);
+
+  // ---- 入力 ----
+  function pointerX(e) {
+    const r = cv.getBoundingClientRect();
+    return (e.clientX - r.left) * (W / r.width);
+  }
+  ['pointerdown', 'pointermove'].forEach(ev => {
+    cv.addEventListener(ev, e => {
+      pocchi.tx = pointerX(e);
+      if (e.pointerType !== 'mouse') e.preventDefault();
+    }, { passive: false });
+  });
+
+  addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') keys.left = true;
+    if (e.key === 'ArrowRight') keys.right = true;
+    if (e.key === ' ' || e.key === 'Enter') {
+      if (state === 'title' || state === 'gameover') start();
+    }
+  });
+  addEventListener('keyup', e => {
+    if (e.key === 'ArrowLeft') keys.left = false;
+    if (e.key === 'ArrowRight') keys.right = false;
+  });
+
+  // ---- ゲーム進行 ----
+  function start() {
+    reset();
+    state = 'playing';
+    titleScreen.classList.remove('show');
+    overScreen.classList.remove('show');
+    crashScreen.classList.remove('show');
+    $('postBox').style.display = 'none';
+  }
+  $('startBtn').onclick = start;
+  $('retryBtn').onclick = start;
+
+  function pickItem() {
+    let r = Math.random() * TOTAL_W;
+    for (const it of ITEMS) { r -= it.w; if (r <= 0) return it; }
+    return ITEMS[0];
+  }
+
+  function spawn() {
+    const def = pickItem();
+    items.push({
+      def,
+      x: 30 + Math.random() * (W - 60),
+      y: -30,
+      vy: 130 + level() * 26 + Math.random() * 50,
+      rot: (Math.random() - .5) * 2,
+      a: Math.random() * 6.28,
+      size: def.type === 'bone' ? 30 : def.type === 'star' ? 26 : 24
+    });
+  }
+
+  function burst(x, y, color, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.28, s = 40 + Math.random() * 130;
+      particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s - 40, life: .5 + Math.random()*.4, t: 0, color });
+    }
+  }
+
+  function setFace(f, t) { pocchi.face = f; pocchi.faceTimer = t; }
+
+  function onCatch(it) {
+    const d = it.def;
+    catches++;
+    if (d.life < 0) {
+      if (invuln <= 0) { life--; shake = .35; setFace('hurt', .7); combo = 0; }
+      score = Math.max(0, score + d.score);
+      burst(it.x, it.y, d.color, 14);
+      if (life <= 0) gameOver();
+    } else if (d.life > 0) {
+      life = Math.min(MAX_LIFE, life + 1);
+      setFace('happy', .8);
+      burst(it.x, it.y, d.color, 18);
+    } else {
+      combo++;
+      maxCombo = Math.max(maxCombo, combo);
+      score = Math.round(score + d.score * (1 + Math.floor(combo / 5) * .5));
+      setFace('happy', .35);
+      burst(it.x, it.y, d.color, d.type === 'star' ? 22 : 10);
+    }
+  }
+
+  function gameOver() {
+    if (state === 'gameover') return;
+    state = 'gameover';
+    const rank =
+      score >= 1200 ? 'ぽっち、天才では？' :
+      score >= 700  ? 'なかなかやるじゃん' :
+      score >= 300  ? 'ぽんこつ卒業間近' : 'ぽんこつ';
+    $('overTitle').textContent = rank;
+    $('rScore').textContent = score;
+    $('rCombo').textContent = maxCombo;
+    $('rCatch').textContent = catches;
+    $('rCrash').textContent = crashes + ' 回';
+    $('rTime').textContent = Math.floor(elapsed) + '秒';
+    overScreen.classList.add('show');
+  }
+
+  // ---- クラッシュ演出（ネタ・実際には落ちてない） ----
+  const CRASH_ERRORS = [
+    "PocchiError: おやつが多すぎてメモリが足りません",
+    "TypeError: Cannot read property 'しっぽ' of undefined",
+    "RangeError: しっぽの回転数が上限を超えました",
+    "PocchiError: 集中力タイムアウト (30ms)",
+    "ReferenceError: やる気 is not defined"
+  ];
+
+  function triggerCrash() {
+    crashes++;
+    crashPhase = 1; crashClock = 0;
+    crashMsg = CRASH_ERRORS[Math.floor(Math.random() * CRASH_ERRORS.length)];
+    $('crashText').textContent =
+      'アプリが落ちました。\n\n' + crashMsg +
+      '\n    at ぽっち.キャッチ処理 (ochiru_app.html:' + (100 + Math.floor(Math.random() * 400)) + ')' +
+      '\n    at 実験室.メインループ (ochiru_app.html:42)\n\n' +
+      '落ちた回数: ' + crashes + ' 回\n\n復旧中…';
+    crashScreen.classList.add('show');
+    state = 'crash';
+  }
+
+  function updateCrash(dt) {
+    crashClock += dt;
+    if (crashPhase === 1 && crashClock > 1.9) {
+      crashPhase = 2; crashClock = 0;
+      $('crashText').textContent = '……なんてね 🐾\n\n（落ちてません。ぽっちの演技です）';
+    } else if (crashPhase === 2 && crashClock > 1.2) {
+      crashPhase = 0;
+      crashScreen.classList.remove('show');
+      state = 'playing';
+      invuln = 1.5;
+      items = items.filter(i => i.y < 120);
+      crashTimer = 22 + Math.random() * 18;
+      setFace('happy', 1);
+    }
+  }
+
+  // ---- 更新 ----
+  function update(dt) {
+    if (state === 'crash') { updateCrash(dt); return; }
+    if (state !== 'playing') return;
+
+    elapsed += dt;
+    if (invuln > 0) invuln -= dt;
+    if (shake > 0) shake -= dt;
+    if (pocchi.faceTimer > 0) { pocchi.faceTimer -= dt; if (pocchi.faceTimer <= 0) pocchi.face = 'normal'; }
+
+    // 移動
+    if (keys.left)  pocchi.tx -= 460 * dt;
+    if (keys.right) pocchi.tx += 460 * dt;
+    pocchi.tx = Math.max(52, Math.min(W - 52, pocchi.tx));
+    const dx = pocchi.tx - pocchi.x;
+    pocchi.x += dx * Math.min(1, dt * 12);
+    pocchi.wag += dt * (6 + Math.abs(dx) * .06);
+    pocchi.blink += dt;
+
+    // 出現
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) {
+      spawn();
+      spawnTimer = Math.max(.34, .95 - level() * .07) * (.75 + Math.random() * .5);
+    }
+
+    // クラッシュ抽選
+    crashTimer -= dt;
+    if (crashTimer <= 0 && score > 60) { triggerCrash(); return; }
+
+    // アイテム判定
+    const mouthY = GROUND - 60, mouthHalf = 42;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      it.y += it.vy * dt;
+      it.a += it.rot * dt;
+      if (it.y >= mouthY && it.y <= mouthY + 70 && Math.abs(it.x - pocchi.x) < mouthHalf + it.size * .4) {
+        items.splice(i, 1);
+        onCatch(it);
+        continue;
+      }
+      if (it.y > H + 40) {
+        items.splice(i, 1);
+        if (it.def.score > 0) { combo = 0; setFace('sad', .4); }
+      }
+    }
+
+    for (const s of stars) s.tw += dt * 2;
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.t += dt;
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 520 * dt;
+      if (p.t >= p.life) particles.splice(i, 1);
+    }
+
+    $('hScore').textContent = score;
+    $('hLife').textContent = '♥'.repeat(Math.max(0, life)) || '—';
+    $('hCrash').textContent = crashes;
+  }
+
+  // ---- 描画 ----
+  function drawBg() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#0b1a2b'); g.addColorStop(.7, '#132a44'); g.addColorStop(1, '#1b3b5c');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    for (const s of stars) {
+      ctx.globalAlpha = .35 + Math.sin(s.tw) * .3;
+      ctx.fillStyle = '#cfe6ff';
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.29); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = 'rgba(255,247,214,.85)';
+    ctx.beginPath(); ctx.arc(W - 74, 78, 26, 0, 6.29); ctx.fill();
+    ctx.fillStyle = '#0e2138';
+    ctx.beginPath(); ctx.arc(W - 86, 70, 24, 0, 6.29); ctx.fill();
+
+    ctx.fillStyle = '#0e2a1c'; ctx.fillRect(0, GROUND + 30, W, H - GROUND - 30);
+    ctx.strokeStyle = 'rgba(120,200,150,.35)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, GROUND + 30); ctx.lineTo(W, GROUND + 30); ctx.stroke();
+  }
+
+  function drawPocchi() {
+    const x = pocchi.x;
+    const hurt = pocchi.face === 'hurt';
+    ctx.save();
+    ctx.translate(x, GROUND);
+
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.beginPath(); ctx.ellipse(0, 34, 46, 9, 0, 0, 6.29); ctx.fill();
+
+    // しっぽ
+    ctx.save();
+    ctx.translate(-40, -4);
+    ctx.rotate(Math.sin(pocchi.wag) * .5 - .4);
+    ctx.fillStyle = '#8b98a8';
+    ctx.beginPath(); ctx.roundRect(-30, -9, 34, 18, 9); ctx.fill();
+    ctx.fillStyle = '#e8eef5';
+    ctx.beginPath(); ctx.roundRect(-30, -9, 14, 18, 8); ctx.fill();
+    ctx.restore();
+
+    // 体
+    ctx.fillStyle = '#9aa7b8';
+    ctx.beginPath(); ctx.roundRect(-40, -14, 80, 46, 20); ctx.fill();
+    ctx.fillStyle = '#f2f6fa';
+    ctx.beginPath(); ctx.roundRect(-24, 2, 48, 30, 14); ctx.fill();
+
+    // 耳
+    ctx.fillStyle = '#8b98a8';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(s * 20, -46); ctx.lineTo(s * 34, -80); ctx.lineTo(s * 40, -42);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = '#f0b9c4';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(s * 24, -48); ctx.lineTo(s * 33, -70); ctx.lineTo(s * 35, -46);
+      ctx.closePath(); ctx.fill();
+    }
+
+    // 頭・マズル
+    ctx.fillStyle = '#a8b5c6';
+    ctx.beginPath(); ctx.roundRect(-40, -62, 80, 62, 26); ctx.fill();
+    ctx.fillStyle = '#f7fafd';
+    ctx.beginPath(); ctx.roundRect(-26, -44, 52, 44, 20); ctx.fill();
+    ctx.fillStyle = '#e8eef5';
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(s * 17, -50, 8, 7, 0, 0, 6.29); ctx.fill(); }
+
+    // 目
+    const blinking = (pocchi.blink % 3.4) < .12;
+    for (const s of [-1, 1]) {
+      if (blinking || hurt) {
+        ctx.strokeStyle = '#1b232e'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(s * 17 - 7, -44); ctx.lineTo(s * 17 + 7, -44); ctx.stroke();
+      } else {
+        ctx.fillStyle = '#1b232e';
+        ctx.beginPath(); ctx.ellipse(s * 17, -45, 5, 6.5, 0, 0, 6.29); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(s * 17 + 2, -47.5, 1.8, 0, 6.29); ctx.fill();
+      }
+    }
+
+    // 鼻・口（＝キャッチ判定エリア）
+    ctx.fillStyle = '#1b232e';
+    ctx.beginPath(); ctx.ellipse(0, -30, 7, 5.5, 0, 0, 6.29); ctx.fill();
+    const open = pocchi.face === 'happy' ? 15 : pocchi.face === 'sad' ? 4 : 9;
+    ctx.fillStyle = '#3a2230';
+    ctx.beginPath(); ctx.ellipse(0, -18, 15, open, 0, 0, 6.29); ctx.fill();
+    ctx.fillStyle = '#ff7a94';
+    ctx.beginPath(); ctx.ellipse(0, -18 + open * .35, 9, open * .6, 0, 0, 6.29); ctx.fill();
+
+    if (invuln > 0 && Math.floor(invuln * 10) % 2 === 0) {
+      ctx.strokeStyle = 'rgba(88,166,255,.9)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(0, -22, 56, 62, 0, 0, 6.29); ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.globalAlpha = .12; ctx.fillStyle = '#58a6ff';
+    ctx.fillRect(x - 42, GROUND - 60, 84, 6);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawItems() {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const it of items) {
+      ctx.save();
+      ctx.translate(it.x, it.y);
+      ctx.rotate(it.a);
+      ctx.font = it.size + 'px serif';
+      ctx.fillText(it.def.emoji, 0, 0);
+      ctx.restore();
+    }
+    for (const p of particles) {
+      ctx.globalAlpha = Math.max(0, 1 - p.t / p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawHud() {
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = 'bold 22px -apple-system,"Segoe UI",sans-serif';
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText(String(score), 18, 38);
+    ctx.font = '12px -apple-system,"Segoe UI",sans-serif';
+    ctx.fillStyle = '#8b949e';
+    ctx.fillText('SCORE  Lv.' + level(), 18, 54);
+
+    ctx.textAlign = 'right';
+    ctx.font = '18px serif';
+    ctx.fillText('♥'.repeat(Math.max(0, life)), W - 18, 38);
+
+    if (combo >= 3) {
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 16px -apple-system,sans-serif';
+      ctx.fillStyle = 'rgba(255,224,102,.95)';
+      ctx.fillText(combo + ' コンボ！', W / 2, 40);
+    }
+  }
+
+  function render() {
+    ctx.save();
+    if (shake > 0) ctx.translate((Math.random() - .5) * shake * 26, (Math.random() - .5) * shake * 26);
+    drawBg();
+    drawItems();
+    drawPocchi();
+    if (state === 'playing') drawHud();
+    ctx.restore();
+  }
+
+  // ---- ループ ----
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(.05, (now - last) / 1000);
+    last = now;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+  reset();
+  requestAnimationFrame(loop);
+
+  // ---- ポスト用テキスト ----
+  $('copyBtn').onclick = async () => {
+    const box = $('postBox');
+    const text =
+      'ぽっちが落ちてくるおやつをキャッチするゲームを作った。\n' +
+      'スコア ' + score + ' ／ 最大 ' + maxCombo + ' コンボ ／ ' + Math.floor(elapsed) + '秒。\n' +
+      'ちなみにこのアプリ、途中で ' + crashes + ' 回「落ちた」。仕様です🐾';
+    box.value = text;
+    box.style.display = 'block';
+    try {
+      await navigator.clipboard.writeText(text);
+      $('copyBtn').textContent = 'コピーした！';
+    } catch (err) {
+      $('copyBtn').textContent = '↓ 手動でコピーして';
+      box.select();
+    }
+    setTimeout(() => { $('copyBtn').textContent = 'ポスト用テキスト'; }, 2500);
+  };
+})();
+</script>
+</body>
+</html>
